@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TripWise - Group Money Tracker</title>
     <style>
-        /* --- Styles same as before for brevity --- */
+        /* Previous styles remain the same */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -35,6 +35,82 @@
         .btn-add-person:hover { background: #138496; }
         .btn-clear { background: #6c757d; color: white; width: 100%; margin-top: 20px; }
         .btn-clear:hover { background: #5a6268; }
+        
+        /* New styles for custom amounts and splitting options */
+        .btn-select-all {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+        .btn-select-all:hover {
+            background: #218838;
+        }
+        .checkbox-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .splitting-mode {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        .splitting-mode label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            cursor: pointer;
+            font-weight: normal;
+        }
+        .splitting-mode input[type="radio"] {
+            margin-right: 8px;
+            width: auto;
+        }
+        .custom-amounts-section {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+        }
+        .custom-amount-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        .custom-amount-item label {
+            min-width: 100px;
+            font-weight: 600;
+        }
+        .custom-amount-item input {
+            width: 100px;
+            padding: 8px;
+            margin: 0;
+        }
+        .total-check {
+            background: #d1ecf1;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .total-check.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .total-check.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
         .expense-item { background: white; padding: 15px; margin: 10px 0; border-radius: 10px; border: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
         .person-item { background: #e8f4fd; padding: 15px; margin: 10px 0; border-radius: 10px; border: 1px solid #bee5eb; display: flex; justify-content: space-between; align-items: center; }
         .expense-details, .person-details { flex-grow: 1; }
@@ -55,7 +131,7 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .multi-checkbox-group { margin-bottom: 10px; }
-        .multi-checkbox-person {margin-right: 12px;}
+        .multi-checkbox-person {margin-right: 12px; margin-bottom: 8px; display: inline-block;}
         .person-checkbox { accent-color: #667eea; }
         @media (max-width: 768px) {
             .container { margin: 10px; border-radius: 15px; }
@@ -66,6 +142,9 @@
             .left-panel { border-right: none; border-bottom: 2px solid #f0f0f0; }
             .expense-item, .person-item { flex-direction: column; align-items: flex-start; }
             .btn-danger { margin-left: 0; margin-top: 10px; }
+            .checkbox-controls { flex-direction: column; align-items: flex-start; }
+            .custom-amount-item { flex-direction: column; align-items: flex-start; }
+            .custom-amount-item label { min-width: auto; }
         }
         @media (max-width: 480px) {
             body { padding: 10px; }
@@ -78,7 +157,7 @@
     <div class="container">
         <div class="header">
             <h1>🧳 TripWise</h1>
-            <p>Easy way to split group expenses - even for selective sharing!</p>
+            <p>Easy way to split group expenses - equal or custom amounts!</p>
         </div>
         <div class="split-view">
             <div class="left-panel">
@@ -108,10 +187,41 @@
                             <label for="expenseAmount">How much money spent:</label>
                             <input type="number" id="expenseAmount" placeholder="Enter amount in rupees" step="1" min="0" required>
                         </div>
-                        <div class="form-group">
-                            <label>Who shared this expense? (Select at least one):</label>
-                            <div id="sharedWithCheckboxes" class="multi-checkbox-group"></div>
+                        
+                        <!-- Splitting Mode Selection -->
+                        <div class="splitting-mode">
+                            <div style="font-weight: 600; margin-bottom: 10px;">How to split this expense:</div>
+                            <label>
+                                <input type="radio" name="splittingMode" value="equal" checked onchange="toggleSplittingMode()">
+                                Split equally among selected people
+                            </label>
+                            <label>
+                                <input type="radio" name="splittingMode" value="custom" onchange="toggleSplittingMode()">
+                                Custom amounts for each person
+                            </label>
                         </div>
+                        
+                        <!-- Equal Split Section -->
+                        <div id="equalSplitSection">
+                            <div class="form-group">
+                                <label>Who shared this expense? (Select at least one):</label>
+                                <div class="checkbox-controls">
+                                    <button type="button" class="btn btn-select-all" id="selectAllBtn" onclick="toggleSelectAll()">
+                                        Select All
+                                    </button>
+                                    <span id="selectedCount" style="color: #666; font-size: 0.9rem;">0 selected</span>
+                                </div>
+                                <div id="sharedWithCheckboxes" class="multi-checkbox-group"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Custom Amounts Section -->
+                        <div id="customAmountsSection" class="custom-amounts-section">
+                            <div style="font-weight: 600; margin-bottom: 10px;">Enter custom amount for each person:</div>
+                            <div id="customAmountInputs"></div>
+                            <div id="totalCheck" class="total-check">Enter amounts to see total</div>
+                        </div>
+                        
                         <div class="form-group">
                             <label for="expenseDescription">What was bought (optional):</label>
                             <input type="text" id="expenseDescription" placeholder="Like: food, petrol, hotel">
@@ -165,6 +275,7 @@
             displayExpenses();
             updatePersonDropdown();
             updateSharedWithCheckboxes();
+            updateCustomAmountInputs();
             updateTotalExpenses();
         }
 
@@ -175,6 +286,102 @@
             document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
             document.getElementById(`${tab}-tab`).classList.add('active');
             activeTab = tab;
+        }
+
+        // ----- Splitting Mode Toggle -----
+        function toggleSplittingMode() {
+            const mode = document.querySelector('input[name="splittingMode"]:checked').value;
+            const equalSection = document.getElementById('equalSplitSection');
+            const customSection = document.getElementById('customAmountsSection');
+            
+            if (mode === 'equal') {
+                equalSection.style.display = 'block';
+                customSection.style.display = 'none';
+            } else {
+                equalSection.style.display = 'none';
+                customSection.style.display = 'block';
+                updateCustomAmountInputs();
+            }
+        }
+
+        // ----- Custom Amount Functions -----
+        function updateCustomAmountInputs() {
+            const container = document.getElementById('customAmountInputs');
+            container.innerHTML = '';
+            
+            people.forEach(person => {
+                const div = document.createElement('div');
+                div.className = 'custom-amount-item';
+                div.innerHTML = `
+                    <label>${person.name}:</label>
+                    <input type="number" class="custom-amount-input" data-person="${person.name}" 
+                           placeholder="₹0" step="1" min="0" oninput="checkCustomTotal()">
+                    <span>₹</span>
+                `;
+                container.appendChild(div);
+            });
+            checkCustomTotal();
+        }
+
+        function checkCustomTotal() {
+            const inputs = document.querySelectorAll('.custom-amount-input');
+            const totalExpenseAmount = parseInt(document.getElementById('expenseAmount').value) || 0;
+            let customTotal = 0;
+            
+            inputs.forEach(input => {
+                customTotal += parseInt(input.value) || 0;
+            });
+            
+            const totalCheckDiv = document.getElementById('totalCheck');
+            
+            if (customTotal === 0) {
+                totalCheckDiv.textContent = 'Enter amounts to see total';
+                totalCheckDiv.className = 'total-check';
+            } else if (customTotal === totalExpenseAmount && totalExpenseAmount > 0) {
+                totalCheckDiv.textContent = `✓ Perfect! Custom total: ₹${customTotal} matches expense amount`;
+                totalCheckDiv.className = 'total-check success';
+            } else {
+                totalCheckDiv.textContent = `⚠ Custom total: ₹${customTotal}, Expense amount: ₹${totalExpenseAmount}`;
+                totalCheckDiv.className = 'total-check error';
+            }
+        }
+
+        // Update total check when expense amount changes
+        document.getElementById('expenseAmount').addEventListener('input', checkCustomTotal);
+
+        // ----- Select All Functionality (for equal split) -----
+        function toggleSelectAll() {
+            const checkboxes = document.querySelectorAll('.person-checkbox');
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            
+            if (allChecked) {
+                checkboxes.forEach(cb => cb.checked = false);
+                selectAllBtn.textContent = 'Select All';
+            } else {
+                checkboxes.forEach(cb => cb.checked = true);
+                selectAllBtn.textContent = 'Unselect All';
+            }
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.person-checkbox');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const selectedCountElement = document.getElementById('selectedCount');
+            const selectAllBtn = document.getElementById('selectAllBtn');
+            
+            if (selectedCountElement) selectedCountElement.textContent = `${checkedCount} selected`;
+            
+            if (selectAllBtn) {
+                if (checkedCount === 0) {
+                    selectAllBtn.textContent = 'Select All';
+                } else if (checkedCount === checkboxes.length) {
+                    selectAllBtn.textContent = 'Unselect All';
+                } else {
+                    selectAllBtn.textContent = 'Select All';
+                }
+            }
         }
 
         // ----- Add People -----
@@ -190,6 +397,7 @@
                 displayPeople();
                 updatePersonDropdown();
                 updateSharedWithCheckboxes();
+                updateCustomAmountInputs();
                 saveData();
                 document.getElementById('personForm').reset();
                 document.getElementById('settlementResults').innerHTML = 
@@ -199,14 +407,13 @@
             }
         });
 
-        // ----- Add Expenses with who shared -----
+        // ----- Add Expenses with equal or custom splitting -----
         document.getElementById('expenseForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const payer = document.getElementById('personSelect').value;
             const amount = parseInt(document.getElementById('expenseAmount').value) || 0;
             const description = document.getElementById('expenseDescription').value.trim();
-            const checkboxes = document.querySelectorAll('.person-checkbox');
-            const sharedWith = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+            const splittingMode = document.querySelector('input[name="splittingMode"]:checked').value;
 
             if (!payer) {
                 alert('Please select who paid.');
@@ -216,17 +423,53 @@
                 alert('Please enter a valid amount.');
                 return;
             }
-            if (sharedWith.length === 0) {
-                alert('Please select at least one person who shared this expense.');
-                return;
+
+            let sharedWith = [];
+            let customAmounts = {};
+
+            if (splittingMode === 'equal') {
+                const checkboxes = document.querySelectorAll('.person-checkbox');
+                sharedWith = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+                if (sharedWith.length === 0) {
+                    alert('Please select at least one person who shared this expense.');
+                    return;
+                }
+            } else {
+                // Custom amounts mode
+                const customInputs = document.querySelectorAll('.custom-amount-input');
+                let customTotal = 0;
+                
+                customInputs.forEach(input => {
+                    const personName = input.dataset.person;
+                    const personAmount = parseInt(input.value) || 0;
+                    if (personAmount > 0) {
+                        sharedWith.push(personName);
+                        customAmounts[personName] = personAmount;
+                        customTotal += personAmount;
+                    }
+                });
+                
+                if (sharedWith.length === 0) {
+                    alert('Please enter amounts for at least one person.');
+                    return;
+                }
+                
+                if (customTotal !== amount) {
+                    alert(`Custom amounts total (₹${customTotal}) must equal the expense amount (₹${amount}).`);
+                    return;
+                }
             }
+
             const expense = {
                 id: Date.now(),
                 name: payer,
                 amount: amount,
                 description: description || 'General expense',
-                sharedWith: sharedWith // Array of strings, person names
+                sharedWith: sharedWith,
+                splittingMode: splittingMode,
+                customAmounts: splittingMode === 'custom' ? customAmounts : null
             };
+            
             expenses.push(expense);
             displayExpenses();
             displayPeople();
@@ -234,6 +477,8 @@
             saveData();
             document.getElementById('expenseForm').reset();
             updateSharedWithCheckboxes();
+            updateCustomAmountInputs();
+            checkCustomTotal();
             document.getElementById('settlementResults').innerHTML = 
                 '<div class="no-data">Click calculate button to see settlements</div>';
         });
@@ -263,20 +508,32 @@
                 container.innerHTML = '<div class="no-data">No expenses added yet</div>';
                 return;
             }
-            container.innerHTML = expenses.map(expense => `
-                <div class="expense-item">
-                    <div class="expense-details">
-                        <div class="expense-name">${expense.name} paid ₹${expense.amount}</div>
-                        <div style="font-size: 0.9rem; color: #666;">
-                            For: ${expense.description}<br>
-                            Shared by: ${expense.sharedWith ? expense.sharedWith.join(', ') : ''}
+            container.innerHTML = expenses.map(expense => {
+                let sharingInfo = '';
+                if (expense.splittingMode === 'custom' && expense.customAmounts) {
+                    const customDetails = Object.entries(expense.customAmounts)
+                        .map(([person, amount]) => `${person}: ₹${amount}`)
+                        .join(', ');
+                    sharingInfo = `Custom amounts - ${customDetails}`;
+                } else {
+                    sharingInfo = `Equal split - ${expense.sharedWith ? expense.sharedWith.join(', ') : ''}`;
+                }
+                
+                return `
+                    <div class="expense-item">
+                        <div class="expense-details">
+                            <div class="expense-name">${expense.name} paid ₹${expense.amount}</div>
+                            <div style="font-size: 0.9rem; color: #666;">
+                                For: ${expense.description}<br>
+                                ${sharingInfo}
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-danger" onclick="removeExpense(${expense.id})">Remove</button>
                         </div>
                     </div>
-                    <div>
-                        <button class="btn btn-danger" onclick="removeExpense(${expense.id})">Remove</button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function updatePersonDropdown() {
@@ -296,13 +553,13 @@
             people.forEach(person => {
                 const div = document.createElement('span');
                 div.className = 'multi-checkbox-person';
-                div.innerHTML = `<label><input type="checkbox" class="person-checkbox" value="${person.name}" /> ${person.name}</label>`;
+                div.innerHTML = `<label><input type="checkbox" class="person-checkbox" value="${person.name}" onchange="updateSelectedCount()" /> ${person.name}</label>`;
                 container.appendChild(div);
             });
+            updateSelectedCount();
         }
 
         function removePerson(name) {
-            // Check for any expense where this person is payer or in sharedWith
             const hasExpenses = expenses.some(expense => 
                 expense.name === name || (expense.sharedWith && expense.sharedWith.includes(name)));
             if (hasExpenses) {
@@ -313,20 +570,24 @@
             displayPeople();
             updatePersonDropdown();
             updateSharedWithCheckboxes();
+            updateCustomAmountInputs();
             saveData();
             document.getElementById('settlementResults').innerHTML = 
                 '<div class="no-data">Click calculate button to see settlements</div>';
         }
+
         function removeExpense(id) {
             expenses = expenses.filter(expense => expense.id !== id);
             displayExpenses();
             displayPeople();
             updateTotalExpenses();
             updateSharedWithCheckboxes();
+            updateCustomAmountInputs();
             saveData();
             document.getElementById('settlementResults').innerHTML = 
                 '<div class="no-data">Click calculate button to see settlements</div>';
         }
+
         function updateTotalExpenses() {
             const total = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
             const totalDiv = document.getElementById('totalExpenses');
@@ -337,6 +598,7 @@
                 totalDiv.style.display = 'none';
             }
         }
+
         function clearAllData() {
             if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
                 people = [];
@@ -347,13 +609,14 @@
                 displayExpenses();
                 updatePersonDropdown();
                 updateSharedWithCheckboxes();
+                updateCustomAmountInputs();
                 updateTotalExpenses();
                 document.getElementById('settlementResults').innerHTML =
                     '<div class="no-data">First add people and expenses, then calculate</div>';
             }
         }
 
-        // ----- Settlement Calculation with Per-Expense Split -----
+        // ----- Settlement Calculation with Custom Amounts -----
         function calculateSettlements() {
             if (people.length === 0) {
                 document.getElementById('settlementResults').innerHTML = 
@@ -366,23 +629,30 @@
                 return;
             }
 
-            // For each person, track actual spent and their "share"
             const totalSpentByPerson = {};
             const totalShouldPay = {};
             people.forEach(person => {
                 totalSpentByPerson[person.name] = 0;
                 totalShouldPay[person.name] = 0;
             });
-            // For each expense, split based ONLY on selected people
+
             expenses.forEach(expense => {
                 totalSpentByPerson[expense.name] += expense.amount;
-                const share = expense.amount / expense.sharedWith.length;
-                expense.sharedWith.forEach(personName => {
-                    totalShouldPay[personName] += share;
-                });
+                
+                if (expense.splittingMode === 'custom' && expense.customAmounts) {
+                    // Use custom amounts
+                    Object.entries(expense.customAmounts).forEach(([personName, amount]) => {
+                        totalShouldPay[personName] += amount;
+                    });
+                } else {
+                    // Equal split
+                    const share = expense.amount / expense.sharedWith.length;
+                    expense.sharedWith.forEach(personName => {
+                        totalShouldPay[personName] += share;
+                    });
+                }
             });
 
-            // For the settlement algorithm, balance = spent - should pay
             const balances = {};
             people.forEach(person => {
                 balances[person.name] = Math.round(totalSpentByPerson[person.name] - totalShouldPay[person.name]);
@@ -392,6 +662,7 @@
             const totalAmount = expenses.reduce((s, e) => s + (e.amount || 0), 0);
             displaySettlements(settlements, totalSpentByPerson, totalShouldPay, totalAmount);
         }
+
         function generateOptimalSettlements(balances) {
             const settlements = [];
             const creditors = [], debtors = [];
@@ -418,6 +689,7 @@
             }
             return settlements;
         }
+
         function displaySettlements(settlements, totalSpentByPerson, totalShouldPay, totalAmount) {
             const container = document.getElementById('settlementResults');
             if (settlements.length === 0) {
@@ -453,6 +725,7 @@
             html += '</div>' + summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount);
             container.innerHTML = html;
         }
+
         function summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount) {
             let html = `
                 <div class="settlements" style="margin-top: 20px;">
@@ -482,9 +755,6 @@
 
         // Init
         window.addEventListener('load', loadData);
-
-        // After adding/removing person, update who shared checkboxes
-        // (Also update after removing expense in case a person is deleted)
     </script>
 </body>
 </html>
