@@ -5,334 +5,72 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TripWise - Group Money Tracker</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        /* --- Styles same as before for brevity --- */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
-
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-
-        .split-view {
-            display: flex;
-            min-height: 600px;
-        }
-
-        .left-panel, .right-panel {
-            flex: 1;
-            padding: 30px;
-        }
-
-        .left-panel {
-            border-right: 2px solid #f0f0f0;
-            background: #fafafa;
-        }
-
-        .panel-title {
-            font-size: 1.5rem;
-            color: #333;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #555;
-        }
-
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
-        }
-
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 600;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #28a745;
-            color: white;
-            width: 100%;
-            margin-top: 10px;
-        }
-
-        .btn-secondary:hover {
-            background: #218838;
-            transform: translateY(-1px);
-        }
-
-        .btn-danger {
-            background: #dc3545;
-            color: white;
-            padding: 8px 15px;
-            font-size: 0.9rem;
-            margin-left: 10px;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-        }
-
-        .btn-add-person {
-            background: #17a2b8;
-            color: white;
-            width: 100%;
-            margin-bottom: 20px;
-        }
-
-        .btn-add-person:hover {
-            background: #138496;
-        }
-
-        .btn-clear {
-            background: #6c757d;
-            color: white;
-            width: 100%;
-            margin-top: 20px;
-        }
-
-        .btn-clear:hover {
-            background: #5a6268;
-        }
-
-        .expense-item {
-            background: white;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .person-item {
-            background: #e8f4fd;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 10px;
-            border: 1px solid #bee5eb;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .expense-details, .person-details {
-            flex-grow: 1;
-        }
-
-        .expense-name, .person-name {
-            font-weight: 600;
-            color: #333;
-        }
-
-        .expense-amount, .person-amount {
-            color: #667eea;
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-
-        .settlements {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 20px;
-        }
-
-        .settlement-item {
-            background: white;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 8px;
-            border-left: 4px solid #28a745;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-        }
-
-        .settlement-item.debt {
-            border-left-color: #dc3545;
-        }
-
-        .settlement-text {
-            font-size: 1rem;
-            color: #333;
-        }
-
-        .settlement-amount {
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-
-        .no-data {
-            text-align: center;
-            color: #666;
-            font-style: italic;
-            padding: 30px;
-        }
-
-        .total-expenses {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .total-amount {
-            font-size: 2rem;
-            font-weight: 600;
-        }
-
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-radius: 10px;
-            overflow: hidden;
-            border: 1px solid #e0e0e0;
-        }
-
-        .tab {
-            flex: 1;
-            padding: 12px;
-            background: #f8f9fa;
-            border: none;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            color: #666;
-            border-right: 1px solid #e0e0e0;
-        }
-
-        .tab:last-child {
-            border-right: none;
-        }
-
-        .tab.active {
-            background: #667eea;
-            color: white;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        /* Mobile Responsive */
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { font-size: 2.5rem; margin-bottom: 10px; }
+        .header p { font-size: 1.1rem; opacity: 0.9; }
+        .split-view { display: flex; min-height: 600px; }
+        .left-panel, .right-panel { flex: 1; padding: 30px; }
+        .left-panel { border-right: 2px solid #f0f0f0; background: #fafafa; }
+        .panel-title { font-size: 1.5rem; color: #333; margin-bottom: 20px; text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1rem; transition: border-color 0.3s ease; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; }
+        .btn { padding: 12px 25px; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; font-weight: 600; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+        .btn-secondary { background: #28a745; color: white; width: 100%; margin-top: 10px; }
+        .btn-secondary:hover { background: #218838; transform: translateY(-1px); }
+        .btn-danger { background: #dc3545; color: white; padding: 8px 15px; font-size: 0.9rem; margin-left: 10px; }
+        .btn-danger:hover { background: #c82333; }
+        .btn-add-person { background: #17a2b8; color: white; width: 100%; margin-bottom: 20px; }
+        .btn-add-person:hover { background: #138496; }
+        .btn-clear { background: #6c757d; color: white; width: 100%; margin-top: 20px; }
+        .btn-clear:hover { background: #5a6268; }
+        .expense-item { background: white; padding: 15px; margin: 10px 0; border-radius: 10px; border: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+        .person-item { background: #e8f4fd; padding: 15px; margin: 10px 0; border-radius: 10px; border: 1px solid #bee5eb; display: flex; justify-content: space-between; align-items: center; }
+        .expense-details, .person-details { flex-grow: 1; }
+        .expense-name, .person-name { font-weight: 600; color: #333; }
+        .expense-amount, .person-amount { color: #667eea; font-weight: 600; font-size: 1.1rem; }
+        .settlements { background: #f8f9fa; padding: 20px; border-radius: 10px; margin-top: 20px; }
+        .settlement-item { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #28a745; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); }
+        .settlement-item.debt { border-left-color: #dc3545; }
+        .settlement-text { font-size: 1rem; color: #333; }
+        .settlement-amount { font-weight: 600; font-size: 1.1rem; }
+        .no-data { text-align: center; color: #666; font-style: italic; padding: 30px; }
+        .total-expenses { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
+        .total-amount { font-size: 2rem; font-weight: 600; }
+        .tabs { display: flex; margin-bottom: 20px; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; }
+        .tab { flex: 1; padding: 12px; background: #f8f9fa; border: none; cursor: pointer; font-size: 1rem; font-weight: 600; color: #666; border-right: 1px solid #e0e0e0; }
+        .tab:last-child { border-right: none; }
+        .tab.active { background: #667eea; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .multi-checkbox-group { margin-bottom: 10px; }
+        .multi-checkbox-person {margin-right: 12px;}
+        .person-checkbox { accent-color: #667eea; }
         @media (max-width: 768px) {
-            .container {
-                margin: 10px;
-                border-radius: 15px;
-            }
-
-            .header {
-                padding: 20px;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
-
-            .split-view {
-                flex-direction: column;
-            }
-
-            .left-panel, .right-panel {
-                padding: 20px;
-            }
-
-            .left-panel {
-                border-right: none;
-                border-bottom: 2px solid #f0f0f0;
-            }
-
-            .expense-item, .person-item {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .btn-danger {
-                margin-left: 0;
-                margin-top: 10px;
-            }
+            .container { margin: 10px; border-radius: 15px; }
+            .header { padding: 20px; }
+            .header h1 { font-size: 2rem; }
+            .split-view { flex-direction: column; }
+            .left-panel, .right-panel { padding: 20px; }
+            .left-panel { border-right: none; border-bottom: 2px solid #f0f0f0; }
+            .expense-item, .person-item { flex-direction: column; align-items: flex-start; }
+            .btn-danger { margin-left: 0; margin-top: 10px; }
         }
-
         @media (max-width: 480px) {
-            body {
-                padding: 10px;
-            }
-
-            .header h1 {
-                font-size: 1.5rem;
-            }
-
-            .left-panel, .right-panel {
-                padding: 15px;
-            }
+            body { padding: 10px; }
+            .header h1 { font-size: 1.5rem; }
+            .left-panel, .right-panel { padding: 15px; }
         }
     </style>
 </head>
@@ -340,33 +78,24 @@
     <div class="container">
         <div class="header">
             <h1>🧳 TripWise</h1>
-            <p>Easy way to split group expenses</p>
+            <p>Easy way to split group expenses - even for selective sharing!</p>
         </div>
-        
         <div class="split-view">
-            <!-- Left Panel - Input Section -->
             <div class="left-panel">
                 <h2 class="panel-title">💰 Add People & Money</h2>
-                
-                <!-- Tabs for switching between adding people and expenses -->
                 <div class="tabs">
                     <button class="tab active" onclick="switchTab('people')">Add People</button>
                     <button class="tab" onclick="switchTab('expenses')">Add Expenses</button>
                 </div>
-
-                <!-- Add Person Tab -->
                 <div id="people-tab" class="tab-content active">
                     <form id="personForm">
                         <div class="form-group">
                             <label for="personNameOnly">Person's Name:</label>
                             <input type="text" id="personNameOnly" placeholder="Enter name" required>
                         </div>
-                        
                         <button type="submit" class="btn btn-add-person">Add Person</button>
                     </form>
                 </div>
-
-                <!-- Add Expense Tab -->
                 <div id="expenses-tab" class="tab-content">
                     <form id="expenseForm">
                         <div class="form-group">
@@ -375,126 +104,94 @@
                                 <option value="">Select person</option>
                             </select>
                         </div>
-                        
                         <div class="form-group">
                             <label for="expenseAmount">How much money spent:</label>
                             <input type="number" id="expenseAmount" placeholder="Enter amount in rupees" step="1" min="0" required>
                         </div>
-                        
+                        <div class="form-group">
+                            <label>Who shared this expense? (Select at least one):</label>
+                            <div id="sharedWithCheckboxes" class="multi-checkbox-group"></div>
+                        </div>
                         <div class="form-group">
                             <label for="expenseDescription">What was bought (optional):</label>
                             <input type="text" id="expenseDescription" placeholder="Like: food, petrol, hotel">
                         </div>
-                        
                         <button type="submit" class="btn btn-primary">Add Expense</button>
                     </form>
                 </div>
-                
                 <div id="peopleAndExpensesList">
                     <h3 style="margin-top: 30px; margin-bottom: 15px; color: #333;">👥 All People</h3>
                     <div id="peopleContainer">
                         <div class="no-data">No people added yet</div>
                     </div>
-
                     <h3 style="margin-top: 30px; margin-bottom: 15px; color: #333;">📋 All Expenses</h3>
                     <div id="expensesContainer">
                         <div class="no-data">No expenses added yet</div>
                     </div>
                 </div>
-
-                <!-- Clear All Data Button -->
                 <button class="btn btn-clear" onclick="clearAllData()">Clear All Data</button>
             </div>
-            
-            <!-- Right Panel - Results Section -->
             <div class="right-panel">
                 <h2 class="panel-title">📊 Money Settlement</h2>
-                
                 <div id="totalExpenses" class="total-expenses" style="display: none;">
                     <div>Total Trip Expenses</div>
                     <div class="total-amount">₹0</div>
                 </div>
-                
                 <button id="calculateBtn" class="btn btn-secondary" onclick="calculateSettlements()">
                     Calculate - Who Pays How Much To Whom
                 </button>
-                
                 <div id="settlementResults">
                     <div class="no-data">First add people and expenses, then calculate</div>
                 </div>
             </div>
         </div>
     </div>
-
     <script>
         let people = [];
         let expenses = [];
         let activeTab = 'people';
 
-        // Load data from localStorage when page loads
-        function loadData() {
-            const savedPeople = localStorage.getItem('tripwise-people');
-            const savedExpenses = localStorage.getItem('tripwise-expenses');
-            
-            if (savedPeople) {
-                people = JSON.parse(savedPeople);
-            }
-            
-            if (savedExpenses) {
-                expenses = JSON.parse(savedExpenses);
-                // Recalculate people's total spent
-                people.forEach(person => {
-                    person.totalSpent = expenses
-                        .filter(expense => expense.name === person.name)
-                        .reduce((sum, expense) => sum + expense.amount, 0);
-                });
-            }
-            
-            displayPeople();
-            displayExpenses();
-            updatePersonDropdown();
-            updateTotalExpenses();
-        }
-
-        // Save data to localStorage
+        // ----- Utility -----
         function saveData() {
             localStorage.setItem('tripwise-people', JSON.stringify(people));
             localStorage.setItem('tripwise-expenses', JSON.stringify(expenses));
         }
+        function loadData() {
+            const savedPeople = localStorage.getItem('tripwise-people');
+            const savedExpenses = localStorage.getItem('tripwise-expenses');
+            if (savedPeople) people = JSON.parse(savedPeople);
+            if (savedExpenses) expenses = JSON.parse(savedExpenses);
+            displayPeople();
+            displayExpenses();
+            updatePersonDropdown();
+            updateSharedWithCheckboxes();
+            updateTotalExpenses();
+        }
 
+        // Tabs
         function switchTab(tab) {
-            // Update active tab
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
             document.getElementById(`${tab}-tab`).classList.add('active');
-            
             activeTab = tab;
         }
 
-        // Add person functionality
+        // ----- Add People -----
         document.getElementById('personForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
             const name = document.getElementById('personNameOnly').value.trim();
-            
             if (name && !people.find(p => p.name.toLowerCase() === name.toLowerCase())) {
                 const person = {
                     id: Date.now(),
-                    name: name,
-                    totalSpent: 0
+                    name: name
                 };
-                
                 people.push(person);
                 displayPeople();
                 updatePersonDropdown();
+                updateSharedWithCheckboxes();
                 saveData();
-                
-                // Clear form
                 document.getElementById('personForm').reset();
-                
-                // Clear settlements when new person is added
                 document.getElementById('settlementResults').innerHTML = 
                     '<div class="no-data">Click calculate button to see settlements</div>';
             } else if (people.find(p => p.name.toLowerCase() === name.toLowerCase())) {
@@ -502,64 +199,59 @@
             }
         });
 
-        // Add expense functionality
+        // ----- Add Expenses with who shared -----
         document.getElementById('expenseForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
-            const personName = document.getElementById('personSelect').value;
+            const payer = document.getElementById('personSelect').value;
             const amount = parseInt(document.getElementById('expenseAmount').value) || 0;
             const description = document.getElementById('expenseDescription').value.trim();
-            
-            if (personName && amount >= 0) {
-                const expense = {
-                    id: Date.now(),
-                    name: personName,
-                    amount: amount,
-                    description: description || 'General expense'
-                };
-                
-                expenses.push(expense);
-                
-                // Update person's total spent
-                const person = people.find(p => p.name === personName);
-                if (person) {
-                    person.totalSpent += amount;
-                }
-                
-                displayExpenses();
-                displayPeople();
-                updateTotalExpenses();
-                saveData();
-                
-                // Clear form
-                document.getElementById('expenseForm').reset();
-                
-                // Clear settlements when new expense is added
-                document.getElementById('settlementResults').innerHTML = 
-                    '<div class="no-data">Click calculate button to see settlements</div>';
+            const checkboxes = document.querySelectorAll('.person-checkbox');
+            const sharedWith = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+
+            if (!payer) {
+                alert('Please select who paid.');
+                return;
             }
+            if (amount <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
+            if (sharedWith.length === 0) {
+                alert('Please select at least one person who shared this expense.');
+                return;
+            }
+            const expense = {
+                id: Date.now(),
+                name: payer,
+                amount: amount,
+                description: description || 'General expense',
+                sharedWith: sharedWith // Array of strings, person names
+            };
+            expenses.push(expense);
+            displayExpenses();
+            displayPeople();
+            updateTotalExpenses();
+            saveData();
+            document.getElementById('expenseForm').reset();
+            updateSharedWithCheckboxes();
+            document.getElementById('settlementResults').innerHTML = 
+                '<div class="no-data">Click calculate button to see settlements</div>';
         });
 
+        // ----- UI functions -----
         function displayPeople() {
             const container = document.getElementById('peopleContainer');
-            
             if (people.length === 0) {
                 container.innerHTML = '<div class="no-data">No people added yet</div>';
                 return;
             }
-            
             container.innerHTML = people.map(person => `
                 <div class="person-item">
                     <div class="person-details">
                         <div class="person-name">${person.name}</div>
-                        <div style="font-size: 0.9rem; color: #666; margin-top: 2px;">
-                            Total spent: ₹${person.totalSpent}
-                        </div>
                     </div>
                     <div>
-                        <button class="btn btn-danger" onclick="removePerson('${person.name}')">
-                            Remove
-                        </button>
+                        <button class="btn btn-danger" onclick="removePerson('${person.name}')">Remove</button>
                     </div>
                 </div>
             `).join('');
@@ -567,25 +259,21 @@
 
         function displayExpenses() {
             const container = document.getElementById('expensesContainer');
-            
             if (expenses.length === 0) {
                 container.innerHTML = '<div class="no-data">No expenses added yet</div>';
                 return;
             }
-            
             container.innerHTML = expenses.map(expense => `
                 <div class="expense-item">
                     <div class="expense-details">
-                        <div class="expense-name">${expense.name}</div>
-                        <div style="font-size: 0.9rem; color: #666; margin-top: 2px;">
-                            ${expense.description}
+                        <div class="expense-name">${expense.name} paid ₹${expense.amount}</div>
+                        <div style="font-size: 0.9rem; color: #666;">
+                            For: ${expense.description}<br>
+                            Shared by: ${expense.sharedWith ? expense.sharedWith.join(', ') : ''}
                         </div>
                     </div>
                     <div>
-                        <div class="expense-amount">₹${expense.amount}</div>
-                        <button class="btn btn-danger" onclick="removeExpense(${expense.id})">
-                            Remove
-                        </button>
+                        <button class="btn btn-danger" onclick="removeExpense(${expense.id})">Remove</button>
                     </div>
                 </div>
             `).join('');
@@ -594,7 +282,6 @@
         function updatePersonDropdown() {
             const select = document.getElementById('personSelect');
             select.innerHTML = '<option value="">Select person</option>';
-            
             people.forEach(person => {
                 const option = document.createElement('option');
                 option.value = person.name;
@@ -603,50 +290,46 @@
             });
         }
 
+        function updateSharedWithCheckboxes() {
+            const container = document.getElementById('sharedWithCheckboxes');
+            container.innerHTML = '';
+            people.forEach(person => {
+                const div = document.createElement('span');
+                div.className = 'multi-checkbox-person';
+                div.innerHTML = `<label><input type="checkbox" class="person-checkbox" value="${person.name}" /> ${person.name}</label>`;
+                container.appendChild(div);
+            });
+        }
+
         function removePerson(name) {
-            // Check if person has any expenses
-            const hasExpenses = expenses.some(expense => expense.name === name);
-            
+            // Check for any expense where this person is payer or in sharedWith
+            const hasExpenses = expenses.some(expense => 
+                expense.name === name || (expense.sharedWith && expense.sharedWith.includes(name)));
             if (hasExpenses) {
-                alert('Please remove all expenses for this person first!');
+                alert('Please remove all expenses for or involving this person first!');
                 return;
             }
-            
             people = people.filter(person => person.name !== name);
             displayPeople();
             updatePersonDropdown();
+            updateSharedWithCheckboxes();
             saveData();
-            
-            // Clear settlements when person is removed
             document.getElementById('settlementResults').innerHTML = 
                 '<div class="no-data">Click calculate button to see settlements</div>';
         }
-
         function removeExpense(id) {
-            const expense = expenses.find(e => e.id === id);
-            if (expense) {
-                // Update person's total spent
-                const person = people.find(p => p.name === expense.name);
-                if (person) {
-                    person.totalSpent -= expense.amount;
-                }
-                
-                expenses = expenses.filter(expense => expense.id !== id);
-                displayExpenses();
-                displayPeople();
-                updateTotalExpenses();
-                saveData();
-                
-                // Clear settlements when expense is removed
-                document.getElementById('settlementResults').innerHTML = 
-                    '<div class="no-data">Click calculate button to see settlements</div>';
-            }
+            expenses = expenses.filter(expense => expense.id !== id);
+            displayExpenses();
+            displayPeople();
+            updateTotalExpenses();
+            updateSharedWithCheckboxes();
+            saveData();
+            document.getElementById('settlementResults').innerHTML = 
+                '<div class="no-data">Click calculate button to see settlements</div>';
         }
-
         function updateTotalExpenses() {
-            const total = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+            const total = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
             const totalDiv = document.getElementById('totalExpenses');
-            
             if (total > 0) {
                 totalDiv.style.display = 'block';
                 totalDiv.querySelector('.total-amount').textContent = `₹${total}`;
@@ -654,100 +337,89 @@
                 totalDiv.style.display = 'none';
             }
         }
-
         function clearAllData() {
             if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
                 people = [];
                 expenses = [];
                 localStorage.removeItem('tripwise-people');
                 localStorage.removeItem('tripwise-expenses');
-                
                 displayPeople();
                 displayExpenses();
                 updatePersonDropdown();
+                updateSharedWithCheckboxes();
                 updateTotalExpenses();
-                
-                document.getElementById('settlementResults').innerHTML = 
+                document.getElementById('settlementResults').innerHTML =
                     '<div class="no-data">First add people and expenses, then calculate</div>';
             }
         }
 
+        // ----- Settlement Calculation with Per-Expense Split -----
         function calculateSettlements() {
             if (people.length === 0) {
                 document.getElementById('settlementResults').innerHTML = 
                     '<div class="no-data">Please add people first</div>';
                 return;
             }
-
             if (expenses.length === 0) {
                 document.getElementById('settlementResults').innerHTML = 
                     '<div class="no-data">Please add some expenses first</div>';
                 return;
             }
 
-            // Calculate total expenses
-            const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+            // For each person, track actual spent and their "share"
+            const totalSpentByPerson = {};
+            const totalShouldPay = {};
+            people.forEach(person => {
+                totalSpentByPerson[person.name] = 0;
+                totalShouldPay[person.name] = 0;
+            });
+            // For each expense, split based ONLY on selected people
+            expenses.forEach(expense => {
+                totalSpentByPerson[expense.name] += expense.amount;
+                const share = expense.amount / expense.sharedWith.length;
+                expense.sharedWith.forEach(personName => {
+                    totalShouldPay[personName] += share;
+                });
+            });
 
-            // Calculate what each person should pay (equal split)
-            const perPersonShare = Math.round(totalAmount / people.length);
-
-            // Calculate who owes what
+            // For the settlement algorithm, balance = spent - should pay
             const balances = {};
             people.forEach(person => {
-                balances[person.name] = person.totalSpent - perPersonShare;
+                balances[person.name] = Math.round(totalSpentByPerson[person.name] - totalShouldPay[person.name]);
             });
 
-            // Generate settlements
             const settlements = generateOptimalSettlements(balances);
-            displaySettlements(settlements, perPersonShare, totalAmount);
+            const totalAmount = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+            displaySettlements(settlements, totalSpentByPerson, totalShouldPay, totalAmount);
         }
-
         function generateOptimalSettlements(balances) {
             const settlements = [];
-            const creditors = []; // People who are owed money
-            const debtors = [];   // People who owe money
-
-            // Separate creditors and debtors
+            const creditors = [], debtors = [];
             Object.entries(balances).forEach(([person, balance]) => {
-                if (balance > 0) { // They overpaid
-                    creditors.push({ name: person, amount: balance });
-                } else if (balance < 0) { // They underpaid
-                    debtors.push({ name: person, amount: -balance });
-                }
+                if (balance > 0) creditors.push({ name: person, amount: balance });
+                else if (balance < 0) debtors.push({ name: person, amount: -balance });
             });
-
-            // Sort by amount for optimal settlements
             creditors.sort((a, b) => b.amount - a.amount);
             debtors.sort((a, b) => b.amount - a.amount);
-
-            // Generate settlements
             let i = 0, j = 0;
             while (i < creditors.length && j < debtors.length) {
                 const creditor = creditors[i];
                 const debtor = debtors[j];
                 const amount = Math.min(creditor.amount, debtor.amount);
-
                 if (amount > 0) {
                     settlements.push({
-                        from: debtor.name,
-                        to: creditor.name,
-                        amount: amount
+                        from: debtor.name, to: creditor.name, amount: amount
                     });
                 }
-
                 creditor.amount -= amount;
                 debtor.amount -= amount;
-
                 if (creditor.amount <= 0) i++;
                 if (debtor.amount <= 0) j++;
             }
-
             return settlements;
         }
-
-        function displaySettlements(settlements, perPersonShare, totalAmount) {
+        function displaySettlements(settlements, totalSpentByPerson, totalShouldPay, totalAmount) {
             const container = document.getElementById('settlementResults');
-            
             if (settlements.length === 0) {
                 container.innerHTML = `
                     <div class="settlements">
@@ -757,19 +429,15 @@
                         <div style="text-align: center; color: #666;">
                             Everyone has paid their fair share.
                         </div>
-                        <div style="text-align: center; margin-top: 15px; font-weight: 600;">
-                            Each person's share: ₹${perPersonShare}
-                        </div>
                     </div>
+                    ${summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount)}
                 `;
                 return;
             }
-
             let html = `
                 <div class="settlements">
                     <h3 style="color: #333; margin-bottom: 15px;">💸 Who Should Pay Whom:</h3>
             `;
-
             settlements.forEach(settlement => {
                 html += `
                     <div class="settlement-item debt">
@@ -782,44 +450,41 @@
                     </div>
                 `;
             });
-
-            html += `</div>`;
-
-            // Add summary breakdown
-            html += `
+            html += '</div>' + summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount);
+            container.innerHTML = html;
+        }
+        function summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount) {
+            let html = `
                 <div class="settlements" style="margin-top: 20px;">
-                    <h3 style="color: #333; margin-bottom: 15px;">📈 Complete Breakdown:</h3>
+                    <h3 style="color: #333; margin-bottom: 15px;">📈 Breakdown:</h3>
                     <div style="margin-bottom: 15px; text-align: center; background: #e9ecef; padding: 10px; border-radius: 8px;">
-                        <strong>Total Expenses: ₹${totalAmount}</strong><br>
-                        <strong>Each Person's Share: ₹${perPersonShare}</strong>
+                        <strong>Total Expenses: ₹${Math.round(totalAmount)}</strong>
                     </div>
             `;
-
             people.forEach(person => {
-                const balance = person.totalSpent - perPersonShare;
-                const isCreditor = balance > 0;
-                const isDebtor = balance < 0;
-                
+                const spent = Math.round(totalSpentByPerson[person.name]);
+                const share = Math.round(totalShouldPay[person.name]);
+                const balance = spent - share;
                 html += `
-                    <div class="settlement-item ${isCreditor ? '' : 'debt'}">
+                    <div class="settlement-item ${balance > 0 ? '' : 'debt'}">
                         <div class="settlement-text">
-                            <strong>${person.name}</strong> spent ₹${person.totalSpent}
-                            ${isCreditor ? ' (paid extra)' : isDebtor ? ' (paid less)' : ' (exact amount)'}
+                            <strong>${person.name}</strong> paid ₹${spent}, should pay ₹${share}
                         </div>
-                        <div class="settlement-amount" style="color: ${isCreditor ? '#28a745' : isDebtor ? '#dc3545' : '#333'};">
+                        <div class="settlement-amount" style="color: ${balance > 0 ? '#28a745' : balance < 0 ? '#dc3545' : '#333'};">
                             ${balance > 0 ? '+' : ''}₹${balance}
                         </div>
                     </div>
                 `;
             });
-
-            html += `</div>`;
-
-            container.innerHTML = html;
+            html += '</div>';
+            return html;
         }
-        // Event listener for switching tabs
-        // Initialize and load data when page loads 
+
+        // Init
         window.addEventListener('load', loadData);
+
+        // After adding/removing person, update who shared checkboxes
+        // (Also update after removing expense in case a person is deleted)
     </script>
 </body>
 </html>
