@@ -4,13 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TripWise - Group Money Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        /* Previous styles remain the same */
+        /* Mobile-first responsive design */
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 10px;
+            margin: 0;
         }
         .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); overflow: hidden; }
         .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
@@ -21,28 +27,31 @@
         .left-panel { border-right: 2px solid #f0f0f0; background: #fafafa; }
         .panel-title { font-size: 1.5rem; color: #333; margin-bottom: 20px; text-align: center; }
         .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1rem; transition: border-color 0.3s ease; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; font-size: 1rem; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 14px 16px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 16px; transition: border-color 0.3s ease; box-sizing: border-box; }
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; }
-        .btn { padding: 12px 25px; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; font-weight: 600; }
+        .btn { padding: 16px 28px; border: none; border-radius: 12px; font-size: 1.05rem; cursor: pointer; transition: all 0.3s ease; font-weight: 600; min-height: 48px; touch-action: manipulation; }
         .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
         .btn-secondary { background: #28a745; color: white; width: 100%; margin-top: 10px; }
         .btn-secondary:hover { background: #218838; transform: translateY(-1px); }
-        .btn-danger { background: #dc3545; color: white; padding: 8px 15px; font-size: 0.9rem; margin-left: 10px; }
+        .btn-danger { background: #dc3545; color: white; padding: 12px 20px; font-size: 0.95rem; margin-left: 10px; min-height: 44px; }
         .btn-danger:hover { background: #c82333; }
         .btn-add-person { background: #17a2b8; color: white; width: 100%; margin-bottom: 20px; }
         .btn-add-person:hover { background: #138496; }
         .btn-clear { background: #6c757d; color: white; width: 100%; margin-top: 20px; }
         .btn-clear:hover { background: #5a6268; }
+        .btn-export { background: #007bff; color: white; width: 100%; margin-top: 10px; }
+        .btn-export:hover { background: #0056b3; }
         
         /* New styles for custom amounts and splitting options */
         .btn-select-all {
             background: #28a745;
             color: white;
-            padding: 8px 16px;
-            font-size: 0.9rem;
+            padding: 12px 20px;
+            font-size: 1rem;
             margin-bottom: 10px;
+            min-height: 44px;
         }
         .btn-select-all:hover {
             background: #218838;
@@ -63,13 +72,17 @@
         .splitting-mode label {
             display: flex;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             cursor: pointer;
             font-weight: normal;
+            padding: 8px;
+            min-height: 44px;
         }
         .splitting-mode input[type="radio"] {
-            margin-right: 8px;
-            width: auto;
+            margin-right: 12px;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
         }
         .custom-amounts-section {
             display: none;
@@ -125,31 +138,61 @@
         .total-expenses { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
         .total-amount { font-size: 2rem; font-weight: 600; }
         .tabs { display: flex; margin-bottom: 20px; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; }
-        .tab { flex: 1; padding: 12px; background: #f8f9fa; border: none; cursor: pointer; font-size: 1rem; font-weight: 600; color: #666; border-right: 1px solid #e0e0e0; }
+        .tab { flex: 1; padding: 16px 12px; background: #f8f9fa; border: none; cursor: pointer; font-size: 1.05rem; font-weight: 600; color: #666; border-right: 1px solid #e0e0e0; min-height: 52px; }
         .tab:last-child { border-right: none; }
         .tab.active { background: #667eea; color: white; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .multi-checkbox-group { margin-bottom: 10px; }
-        .multi-checkbox-person {margin-right: 12px; margin-bottom: 8px; display: inline-block;}
-        .person-checkbox { accent-color: #667eea; }
+        .multi-checkbox-person {margin-right: 12px; margin-bottom: 12px; display: inline-block;}
+        .multi-checkbox-person label { display: flex; align-items: center; padding: 8px; cursor: pointer; min-height: 40px; }
+        .person-checkbox { accent-color: #667eea; width: 20px; height: 20px; margin-right: 8px; cursor: pointer; }
         @media (max-width: 768px) {
-            .container { margin: 10px; border-radius: 15px; }
-            .header { padding: 20px; }
-            .header h1 { font-size: 2rem; }
+            body { padding: 5px; }
+            .container { margin: 5px; border-radius: 15px; }
+            .header { padding: 20px 15px; }
+            .header h1 { font-size: 1.8rem; line-height: 1.2; }
+            .header p { font-size: 0.95rem; }
             .split-view { flex-direction: column; }
-            .left-panel, .right-panel { padding: 20px; }
+            .left-panel, .right-panel { padding: 15px; }
             .left-panel { border-right: none; border-bottom: 2px solid #f0f0f0; }
-            .expense-item, .person-item { flex-direction: column; align-items: flex-start; }
-            .btn-danger { margin-left: 0; margin-top: 10px; }
-            .checkbox-controls { flex-direction: column; align-items: flex-start; }
-            .custom-amount-item { flex-direction: column; align-items: flex-start; }
-            .custom-amount-item label { min-width: auto; }
+            .panel-title { font-size: 1.3rem; }
+            .expense-item, .person-item { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; }
+            .btn-danger { margin-left: 0; margin-top: 8px; width: 100%; }
+            .checkbox-controls { flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; }
+            .btn-select-all { width: 100%; }
+            .custom-amount-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+            .custom-amount-item label { min-width: auto; width: 100%; }
+            .custom-amount-item input { width: 100%; max-width: 200px; }
+            .tab { font-size: 0.95rem; padding: 14px 8px; }
+            .settlements { padding: 15px; }
+            .settlement-item { padding: 12px; }
+            .total-expenses { padding: 15px; }
+            .total-amount { font-size: 1.8rem; }
         }
         @media (max-width: 480px) {
-            body { padding: 10px; }
-            .header h1 { font-size: 1.5rem; }
-            .left-panel, .right-panel { padding: 15px; }
+            body { padding: 0; }
+            .container { margin: 0; border-radius: 0; }
+            .header { padding: 18px 12px; border-radius: 0; }
+            .header h1 { font-size: 1.5rem; margin-bottom: 5px; }
+            .header p { font-size: 0.85rem; }
+            .left-panel, .right-panel { padding: 12px; }
+            .panel-title { font-size: 1.2rem; margin-bottom: 15px; }
+            .form-group { margin-bottom: 16px; }
+            .form-group label { font-size: 0.95rem; margin-bottom: 6px; }
+            .btn { font-size: 1rem; padding: 14px 20px; }
+            .tab { font-size: 0.9rem; }
+            .expense-name, .person-name { font-size: 0.95rem; }
+            .settlement-text { font-size: 0.95rem; }
+            .total-amount { font-size: 1.6rem; }
+            .no-data { padding: 20px; font-size: 0.9rem; }
+        }
+        @media (max-width: 360px) {
+            .header h1 { font-size: 1.3rem; }
+            .header p { font-size: 0.8rem; }
+            .panel-title { font-size: 1.1rem; }
+            .btn { font-size: 0.95rem; padding: 12px 16px; }
+            .tab { font-size: 0.85rem; padding: 12px 6px; }
         }
     </style>
 </head>
@@ -249,6 +292,9 @@
                 </div>
                 <button id="calculateBtn" class="btn btn-secondary" onclick="calculateSettlements()">
                     Calculate - Who Pays How Much To Whom
+                </button>
+                <button id="exportBtn" class="btn btn-export" onclick="exportToPDF()" style="display: none;">
+                    📄 Export to PDF
                 </button>
                 <div id="settlementResults">
                     <div class="no-data">First add people and expenses, then calculate</div>
@@ -353,6 +399,12 @@
         function toggleSelectAll() {
             const checkboxes = document.querySelectorAll('.person-checkbox');
             const selectAllBtn = document.getElementById('selectAllBtn');
+            
+            if (checkboxes.length === 0) {
+                alert('Please add people first!');
+                return;
+            }
+            
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
             
             if (allChecked) {
@@ -724,6 +776,9 @@
             });
             html += '</div>' + summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount);
             container.innerHTML = html;
+            
+            // Show export button after calculation
+            document.getElementById('exportBtn').style.display = 'block';
         }
 
         function summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount) {
@@ -751,6 +806,251 @@
             });
             html += '</div>';
             return html;
+        }
+
+        // ----- PDF Export Function -----
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Add border and professional styling
+            doc.setDrawColor(102, 126, 234);
+            doc.setLineWidth(0.5);
+            doc.rect(10, 10, 190, 277);
+            
+            // Title with background
+            doc.setFillColor(102, 126, 234);
+            doc.rect(15, 15, 180, 15, 'F');
+            doc.setFontSize(18);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont(undefined, 'bold');
+            doc.text('TRIPWISE - EXPENSE REPORT', 105, 24, { align: 'center' });
+            
+            // Date
+            doc.setFontSize(9);
+            doc.setTextColor(100);
+            doc.setFont(undefined, 'normal');
+            const today = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+            doc.text(`Generated on: ${today}`, 105, 36, { align: 'center' });
+            
+            let yPos = 48;
+            
+            // Total Expenses Box
+            if (expenses.length > 0) {
+                const totalAmount = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+                doc.setFillColor(240, 240, 240);
+                doc.rect(15, yPos - 5, 180, 12, 'F');
+                doc.setFontSize(13);
+                doc.setTextColor(0);
+                doc.setFont(undefined, 'bold');
+                doc.text(`TOTAL TRIP EXPENSES: Rs. ${totalAmount}`, 105, yPos + 2, { align: 'center' });
+                doc.setFont(undefined, 'normal');
+                yPos += 16;
+            }
+            
+            // People Section
+            doc.setDrawColor(102, 126, 234);
+            doc.setLineWidth(0.3);
+            doc.line(15, yPos, 195, yPos);
+            yPos += 6;
+            
+            doc.setFontSize(13);
+            doc.setTextColor(102, 126, 234);
+            doc.setFont(undefined, 'bold');
+            doc.text('PEOPLE IN THE TRIP', 20, yPos);
+            doc.setFont(undefined, 'normal');
+            yPos += 7;
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0);
+            if (people.length === 0) {
+                doc.text('No people added', 25, yPos);
+                yPos += 7;
+            } else {
+                people.forEach((person, index) => {
+                    doc.text(`${index + 1}. ${person.name}`, 25, yPos);
+                    yPos += 6;
+                });
+            }
+            yPos += 6;
+            
+            // Expenses Section
+            if (yPos > 245) { doc.addPage(); yPos = 20; }
+            doc.setDrawColor(102, 126, 234);
+            doc.line(15, yPos, 195, yPos);
+            yPos += 6;
+            
+            doc.setFontSize(13);
+            doc.setTextColor(102, 126, 234);
+            doc.setFont(undefined, 'bold');
+            doc.text('ALL EXPENSES', 20, yPos);
+            doc.setFont(undefined, 'normal');
+            yPos += 7;
+            
+            doc.setFontSize(10);
+            doc.setTextColor(0);
+            if (expenses.length === 0) {
+                doc.text('No expenses added', 25, yPos);
+                yPos += 7;
+            } else {
+                expenses.forEach((expense, index) => {
+                    if (yPos > 265) { doc.addPage(); yPos = 20; }
+                    
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`${index + 1}. ${expense.name} paid Rs. ${expense.amount}`, 25, yPos);
+                    yPos += 5;
+                    
+                    doc.setFont(undefined, 'normal');
+                    doc.setFontSize(9);
+                    doc.text(`For: ${expense.description}`, 30, yPos);
+                    yPos += 4;
+                    
+                    if (expense.splittingMode === 'custom' && expense.customAmounts) {
+                        const customDetails = Object.entries(expense.customAmounts)
+                            .map(([person, amount]) => `${person}: Rs. ${amount}`)
+                            .join(', ');
+                        doc.text(`Custom amounts - ${customDetails}`, 30, yPos);
+                    } else {
+                        doc.text(`Equal split - ${expense.sharedWith ? expense.sharedWith.join(', ') : ''}`, 30, yPos);
+                    }
+                    doc.setFontSize(10);
+                    yPos += 7;
+                });
+            }
+            yPos += 6;
+            
+            // Settlements Section
+            if (expenses.length > 0 && people.length > 0) {
+                if (yPos > 250) { doc.addPage(); yPos = 20; }
+                
+                // Calculate settlements
+                const totalSpentByPerson = {};
+                const totalShouldPay = {};
+                people.forEach(person => {
+                    totalSpentByPerson[person.name] = 0;
+                    totalShouldPay[person.name] = 0;
+                });
+                
+                expenses.forEach(expense => {
+                    totalSpentByPerson[expense.name] += expense.amount;
+                    
+                    if (expense.splittingMode === 'custom' && expense.customAmounts) {
+                        Object.entries(expense.customAmounts).forEach(([personName, amount]) => {
+                            totalShouldPay[personName] += amount;
+                        });
+                    } else {
+                        const share = expense.amount / expense.sharedWith.length;
+                        expense.sharedWith.forEach(personName => {
+                            totalShouldPay[personName] += share;
+                        });
+                    }
+                });
+                
+                const balances = {};
+                people.forEach(person => {
+                    balances[person.name] = Math.round(totalSpentByPerson[person.name] - totalShouldPay[person.name]);
+                });
+                
+                const settlements = generateOptimalSettlements(balances);
+                
+                // Settlement Plan Section
+                if (yPos > 240) { doc.addPage(); yPos = 20; }
+                doc.setDrawColor(102, 126, 234);
+                doc.line(15, yPos, 195, yPos);
+                yPos += 6;
+                
+                doc.setFontSize(13);
+                doc.setTextColor(102, 126, 234);
+                doc.setFont(undefined, 'bold');
+                doc.text('SETTLEMENT PLAN', 20, yPos);
+                doc.setFont(undefined, 'normal');
+                yPos += 7;
+                
+                doc.setFontSize(10);
+                doc.setTextColor(0);
+                
+                if (settlements.length === 0) {
+                    doc.setFillColor(212, 237, 218);
+                    doc.rect(20, yPos - 4, 170, 10, 'F');
+                    doc.setTextColor(21, 87, 36);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('Everyone is settled! No payments needed.', 25, yPos + 2);
+                    doc.setFont(undefined, 'normal');
+                    doc.setTextColor(0);
+                    yPos += 10;
+                } else {
+                    settlements.forEach((settlement, index) => {
+                        if (yPos > 265) { doc.addPage(); yPos = 20; }
+                        doc.setFillColor(255, 240, 245);
+                        doc.rect(20, yPos - 4, 170, 9, 'F');
+                        doc.setTextColor(220, 53, 69);
+                        doc.setFont(undefined, 'bold');
+                        doc.text(`${index + 1}. ${settlement.from} should pay ${settlement.to}: Rs. ${settlement.amount}`, 25, yPos + 2);
+                        doc.setFont(undefined, 'normal');
+                        doc.setTextColor(0);
+                        yPos += 10;
+                    });
+                }
+                yPos += 6;
+                
+                // Individual Breakdown Section
+                if (yPos > 225) { doc.addPage(); yPos = 20; }
+                doc.setDrawColor(102, 126, 234);
+                doc.line(15, yPos, 195, yPos);
+                yPos += 6;
+                
+                doc.setFontSize(13);
+                doc.setTextColor(102, 126, 234);
+                doc.setFont(undefined, 'bold');
+                doc.text('INDIVIDUAL BREAKDOWN', 20, yPos);
+                doc.setFont(undefined, 'normal');
+                yPos += 7;
+                
+                doc.setFontSize(10);
+                doc.setTextColor(0);
+                people.forEach(person => {
+                    if (yPos > 265) { doc.addPage(); yPos = 20; }
+                    const spent = Math.round(totalSpentByPerson[person.name]);
+                    const share = Math.round(totalShouldPay[person.name]);
+                    const balance = spent - share;
+                    
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`${person.name}:`, 25, yPos);
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`Paid Rs. ${spent}, Should pay Rs. ${share}`, 55, yPos);
+                    yPos += 5;
+                    
+                    if (balance > 0) {
+                        doc.setFillColor(212, 237, 218);
+                        doc.rect(30, yPos - 4, 100, 7, 'F');
+                        doc.setTextColor(21, 87, 36);
+                        doc.text(`Balance: +Rs. ${balance} (Gets back)`, 33, yPos + 1);
+                    } else if (balance < 0) {
+                        doc.setFillColor(248, 215, 218);
+                        doc.rect(30, yPos - 4, 100, 7, 'F');
+                        doc.setTextColor(114, 28, 36);
+                        doc.text(`Balance: Rs. ${balance} (Owes)`, 33, yPos + 1);
+                    } else {
+                        doc.setTextColor(0);
+                        doc.text(`Balance: Rs. 0 (Settled)`, 33, yPos + 1);
+                    }
+                    doc.setTextColor(0);
+                    yPos += 9;
+                });
+            }
+            
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(`Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
+                doc.text('Generated by TripWise', 195, 290, { align: 'right' });
+            }
+            
+            // Save PDF
+            doc.save('TripWise-Expense-Report.pdf');
         }
 
         // Init
