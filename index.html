@@ -39,7 +39,7 @@
         .btn-danger:hover { background: #c82333; }
         .btn-add-person { background: #17a2b8; color: white; width: 100%; margin-bottom: 20px; }
         .btn-add-person:hover { background: #138496; }
-        .btn-clear { background: #6c757d; color: white; width: 100%; margin-top: 20px; }
+        .btn-clear { background: #6c757d; color: white; width: 20%; margin-top: 20px; padding: 12px 20px; font-size: 0.9rem; min-height: 40px; margin-left: auto; margin-right: auto; display: block; }
         .btn-clear:hover { background: #5a6268; }
         .btn-export { background: #007bff; color: white; width: 100%; margin-top: 10px; }
         .btn-export:hover { background: #0056b3; }
@@ -217,6 +217,10 @@
                         </div>
                         <button type="submit" class="btn btn-add-person">Add Person</button>
                     </form>
+                    <h3 style="margin-top: 30px; margin-bottom: 15px; color: #333;">👥 All People</h3>
+                    <div id="peopleContainer">
+                        <div class="no-data">No people added yet</div>
+                    </div>
                 </div>
                 <div id="expenses-tab" class="tab-content">
                     <form id="expenseForm">
@@ -271,12 +275,6 @@
                         </div>
                         <button type="submit" class="btn btn-primary">Add Expense</button>
                     </form>
-                </div>
-                <div id="peopleAndExpensesList">
-                    <h3 style="margin-top: 30px; margin-bottom: 15px; color: #333;">👥 All People</h3>
-                    <div id="peopleContainer">
-                        <div class="no-data">No people added yet</div>
-                    </div>
                     <h3 style="margin-top: 30px; margin-bottom: 15px; color: #333;">📋 All Expenses</h3>
                     <div id="expensesContainer">
                         <div class="no-data">No expenses added yet</div>
