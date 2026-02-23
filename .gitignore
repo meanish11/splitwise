@@ -5,6 +5,9 @@
 .env.test.local
 .env.production.local
 
+# Firebase config (contains API keys — keep local only)
+firebase-config.js
+
 # Node modules (if you add npm later)
 node_modules/
 
