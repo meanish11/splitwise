@@ -444,11 +444,35 @@ body {
 }
 
 .person-checkbox {
-  accent-color: var(--primary);
-  width: 17px;
-  height: 17px;
+  display: none;
+}
+
+/* Custom tick indicator */
+.multi-checkbox-person label::before {
+  content: '';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
   margin-right: 8px;
-  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+  transition: var(--t);
+  background: transparent;
+  color: transparent;
+  line-height: 1;
+}
+
+.multi-checkbox-person label:has(input:checked)::before {
+  content: '\2713';
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 0 6px rgba(99,102,241,.5);
 }
 
 /* ── Splitting Mode ─────────────────────────── */
@@ -970,6 +994,17 @@ h3 {
   background: rgba(99,102,241,.25);
   border-color: rgba(99,102,241,.6);
   color: #C4B5FD;
+}
+
+#workspace-page .multi-checkbox-person label::before {
+  border-color: rgba(139,92,246,.4);
+}
+
+#workspace-page .multi-checkbox-person label:has(input:checked)::before {
+  background: #8B5CF6;
+  border-color: #8B5CF6;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(139,92,246,.6);
 }
 
 /* ── Custom Amounts Section (dark) ─────────── */
