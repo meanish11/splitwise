@@ -1,5 +1,5 @@
 // ============================================================
-//  TripWise â€” Main Script  (Firebase Firestore + Real-time sync)
+//  TripWise  Main Script  (Firebase Firestore + Real-time sync)
 // ============================================================
 //  Firestore structure:
 //    Collection: "groups"
@@ -43,7 +43,7 @@ function showToast(message, type = '') {
 }
 
 /** Show/hide a full-screen loading overlay while Firestore calls run */
-function setLoading(on, msg = 'Loadingâ€¦') {
+function setLoading(on, msg = 'Loading') {
     let overlay = document.getElementById('fw-loading-overlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -81,7 +81,7 @@ function setLoading(on, msg = 'Loadingâ€¦') {
 
 /** Create a new group document in Firestore, show code modal */
 async function createGroup(tripName) {
-    setLoading(true, 'Creating your tripâ€¦');
+    setLoading(true, 'Creating your trip');
     try {
         const groupsRef = db.collection('groups');
         let code;
@@ -112,7 +112,7 @@ async function createGroup(tripName) {
     } catch (err) {
         setLoading(false);
         console.error('createGroup error:', err);
-        showToast('âŒ Could not create group. Check your Firebase config.', 'error');
+        showToast(' Could not create group. Check your Firebase config.', 'error');
     }
 }
 
@@ -131,26 +131,26 @@ function handleModalOverlayClick(e) {
 /** Copy the code shown in the modal */
 function copyCodeFromModal() {
     const code = document.getElementById('modalCode').textContent;
-    navigator.clipboard.writeText(code).then(() => showToast('Code copied! ðŸŽ‰', 'success'));
+    navigator.clipboard.writeText(code).then(() => showToast('Code copied! ', 'success'));
 }
 
 /** Join an existing group by code */
 async function joinGroup(code) {
-    setLoading(true, 'Looking up groupâ€¦');
+    setLoading(true, 'Looking up group');
     try {
         const snap = await db.collection('groups').doc(code).get();
         setLoading(false);
         if (!snap.exists) {
             const errEl = document.getElementById('joinError');
             errEl.style.display = 'block';
-            errEl.textContent = `âŒ No trip found with code "${code}". Please check and try again.`;
+            errEl.textContent = ` No trip found with code "${code}". Please check and try again.`;
             return;
         }
         openWorkspace(code);
     } catch (err) {
         setLoading(false);
         console.error('joinGroup error:', err);
-        showToast('âŒ Could not connect to database. Check your Firebase config.', 'error');
+        showToast(' Could not connect to database. Check your Firebase config.', 'error');
     }
 }
 
@@ -181,15 +181,15 @@ function openWorkspace(code) {
     document.getElementById('landing-page').style.display   = 'none';
     document.getElementById('workspace-page').style.display = 'flex';
     document.getElementById('groupDisplayCode').textContent = code;
-    document.getElementById('groupDisplayName').textContent = 'â€¦';
+    document.getElementById('groupDisplayName').textContent = '';
 
     initMobilePanels();
 
-    // â”€â”€ Real-time listener â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    //  Real-time listener 
     groupUnsubscribe = db.collection('groups').doc(code)
         .onSnapshot(snap => {
             if (!snap.exists) {
-                showToast('âš  This group was deleted.', 'error');
+                showToast(' This group was deleted.', 'error');
                 goBackToLanding();
                 return;
             }
@@ -217,7 +217,7 @@ function openWorkspace(code) {
         },
         err => {
             console.error('onSnapshot error:', err);
-            showToast('âš  Lost connection to group. Retryingâ€¦', 'error');
+            showToast(' Lost connection to group. Retrying', 'error');
         });
 }
 
@@ -233,7 +233,7 @@ function goBackToLanding() {
 /** Copy the current group code to clipboard */
 function copyGroupCode() {
     const code = document.getElementById('groupDisplayCode').textContent;
-    navigator.clipboard.writeText(code).then(() => showToast('Group code copied! Share it with your friends ðŸŽ‰', 'success'));
+    navigator.clipboard.writeText(code).then(() => showToast('Group code copied! Share it with your friends ', 'success'));
 }
 
 
@@ -243,7 +243,7 @@ function copyGroupCode() {
 
 /**
  * Persist the current `people` and `expenses` arrays to Firestore.
- * This is the single write point â€” all mutations call this.
+ * This is the single write point  all mutations call this.
  */
 async function saveData() {
     if (!currentGroupCode) return;
@@ -254,7 +254,7 @@ async function saveData() {
         });
     } catch (err) {
         console.error('saveData error:', err);
-        showToast('âš  Could not save changes.', 'error');
+        showToast(' Could not save changes.', 'error');
     }
 }
 
@@ -264,7 +264,7 @@ async function saveData() {
 // ============================================================
 
 function loadData() {
-    // No localStorage â€” just show landing page on first load.
+    // No localStorage  just show landing page on first load.
     // The URL hash trick: if someone navigates with ?code=XXXXXX auto-join
     const params = new URLSearchParams(window.location.search);
     const codeParam = params.get('code');
@@ -349,8 +349,8 @@ function updateCustomAmountInputs() {
         div.innerHTML = `
             <label>${person.name}:</label>
             <input type="number" class="custom-amount-input" data-person="${person.name}"
-                   placeholder="â‚¹0" step="1" min="0" oninput="checkCustomTotal()">
-            <span>â‚¹</span>
+                   placeholder="0" step="1" min="0" oninput="checkCustomTotal()">
+            <span></span>
         `;
         container.appendChild(div);
     });
@@ -367,10 +367,10 @@ function checkCustomTotal() {
         el.textContent = 'Enter amounts to see total';
         el.className = 'total-check';
     } else if (customTotal === expAmount && expAmount > 0) {
-        el.textContent = `âœ“ Perfect! Custom total: â‚¹${customTotal} matches expense amount`;
+        el.textContent = ` Perfect! Custom total: ${customTotal} matches expense amount`;
         el.className = 'total-check success';
     } else {
-        el.textContent = `âš  Custom total: â‚¹${customTotal}, Expense amount: â‚¹${expAmount}`;
+        el.textContent = ` Custom total: ${customTotal}, Expense amount: ${expAmount}`;
         el.className = 'total-check error';
     }
 }
@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             if (sharedWith.length === 0) { alert('Please enter amounts for at least one person.'); return; }
             if (customTotal !== amount) {
-                alert(`Custom amounts total (â‚¹${customTotal}) must equal the expense amount (â‚¹${amount}).`); return;
+                alert(`Custom amounts total (${customTotal}) must equal the expense amount (${amount}).`); return;
             }
         }
 
@@ -501,7 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const amtInput = document.getElementById('expenseAmount');
     if (amtInput) amtInput.addEventListener('input', checkCustomTotal);
 
-    // Landing — Create Group form
+    // Landing - Create Group form
     const createForm = document.getElementById('createGroupForm');
     if (createForm) {
         createForm.addEventListener('submit', function(e) {
@@ -513,7 +513,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Landing — Join Group form
+    // Landing - Join Group form
     const joinForm = document.getElementById('joinGroupForm');
     if (joinForm) {
         joinForm.addEventListener('submit', function(e) {
@@ -522,7 +522,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (code.length !== 6) {
                 const errEl = document.getElementById('joinError');
                 errEl.style.display = 'block';
-                errEl.textContent = '❌ Please enter a valid 6-character code.';
+                errEl.textContent = ' Please enter a valid 6-character code.';
                 return;
             }
             joinGroup(code);
@@ -565,13 +565,13 @@ async function clearAllData() {
 function displayPeople() {
     const container = document.getElementById('peopleContainer');
     if (people.length === 0) {
-        container.innerHTML = '<div class="no-data">No people added yet ðŸ¤·</div>'; return;
+        container.innerHTML = '<div class="no-data">No people added yet </div>'; return;
     }
     container.innerHTML = `<div class="people-grid">${
         people.map(p => `
             <div class="person-item">
                 <div class="person-details"><div class="person-name">${p.name}</div></div>
-                <button class="btn-delete-person" onclick="removePerson('${p.name}')" title="Delete">Ã—</button>
+                <button class="btn-delete-person" onclick="removePerson('${p.name}')" title="Delete">&times;</button>
             </div>`).join('')
     }</div>`;
 }
@@ -579,19 +579,19 @@ function displayPeople() {
 function displayExpenses() {
     const container = document.getElementById('expensesContainer');
     if (expenses.length === 0) {
-        container.innerHTML = '<div class="no-data">No expenses added yet ðŸ“­</div>'; return;
+        container.innerHTML = '<div class="no-data">No expenses added yet </div>'; return;
     }
     container.innerHTML = expenses.map(ex => {
         let info = ex.splittingMode === 'custom' && ex.customAmounts
-            ? 'Custom: ' + Object.entries(ex.customAmounts).map(([p,a]) => `${p}: â‚¹${a}`).join(', ')
-            : 'Equal split â€” ' + (ex.sharedWith ? ex.sharedWith.join(', ') : '');
+            ? 'Custom: ' + Object.entries(ex.customAmounts).map(([p,a]) => `${p}: &#x20B9;${a}`).join(', ')
+            : 'Equal split &mdash; ' + (ex.sharedWith ? ex.sharedWith.join(', ') : '');
         return `
             <div class="expense-item">
                 <div class="expense-details">
-                    <div class="expense-name">${ex.name} paid â‚¹${ex.amount}</div>
-                    <div class="expense-amount">For: ${ex.description} â€¢ ${info}</div>
+                    <div class="expense-name">${ex.name} paid &#x20B9;${ex.amount}</div>
+                    <div class="expense-amount">For: ${ex.description} &bull; ${info}</div>
                 </div>
-                <button class="btn-delete-expense" onclick="removeExpense(${ex.id})" title="Delete">Ã—</button>
+                <button class="btn-delete-expense" onclick="removeExpense(${ex.id})" title="Delete">&times;</button>
             </div>`;
     }).join('');
 }
@@ -623,7 +623,7 @@ function updateTotalExpenses() {
     const div    = document.getElementById('totalExpenses');
     if (total > 0) {
         div.style.display = 'block';
-        div.querySelector('.total-amount').textContent = `â‚¹${total}`;
+        div.querySelector('.total-amount').textContent = '\u20B9' + total;
     } else {
         div.style.display = 'none';
     }
@@ -687,29 +687,29 @@ function displaySettlements(settlements, spent, shouldPay, totalAmt) {
     if (settlements.length === 0) {
         html = `
             <div class="settlement-item" style="border-left-color:#10B981;">
-                <div class="settlement-text">ðŸŽ‰ Everyone is settled up!</div>
+                <div class="settlement-text"> Everyone is settled up!</div>
                 <div class="settlement-amount" style="color:#34D399;">No payments needed</div>
             </div>`;
     } else {
-        html = `<div style="font-size:.8rem;color:rgba(199,210,254,.6);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">ðŸ’¸ Who Pays Whom</div>`;
+        html = `<div style="font-size:.8rem;color:rgba(199,210,254,.6);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;"> Who Pays Whom</div>`;
         settlements.forEach(s => {
             html += `
                 <div class="settlement-item debt">
-                    <div class="settlement-text"><strong>${s.from}</strong> â†’ <strong>${s.to}</strong></div>
-                    <div class="settlement-amount">â‚¹${s.amount}</div>
+                    <div class="settlement-text"><strong>${s.from}</strong> &rarr; <strong>${s.to}</strong></div>
+                    <div class="settlement-amount">&#x20B9;${s.amount}</div>
                 </div>`;
         });
     }
 
     // Breakdown
-    html += `<div style="font-size:.8rem;color:rgba(199,210,254,.6);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:20px 0 10px;">ðŸ“Š Breakdown</div>`;
+    html += `<div style="font-size:.8rem;color:rgba(199,210,254,.6);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:20px 0 10px;"> Breakdown</div>`;
     people.forEach(p => {
         const s = Math.round(spent[p.name]), sh = Math.round(shouldPay[p.name]), bal = s - sh;
         html += `
             <div class="settlement-item ${bal < 0 ? 'debt' : ''}">
-                <div class="settlement-text"><strong>${p.name}</strong> paid â‚¹${s}, owes â‚¹${sh}</div>
+                <div class="settlement-text"><strong>${p.name}</strong> paid &#x20B9;${s}, owes &#x20B9;${sh}</div>
                 <div class="settlement-amount" style="color:${bal > 0 ? '#34D399' : bal < 0 ? '#F87171' : '#A5B4FC'}">
-                    ${bal > 0 ? '+' : ''}â‚¹${bal}
+                    ${bal > 0 ? '+&#x20B9;' : bal < 0 ? '-&#x20B9;' : '&#x20B9;'}${Math.abs(bal)}
                 </div>
             </div>`;
     });
@@ -738,13 +738,13 @@ function exportToPDF() {
     doc.setTextColor(255, 255, 255);
     doc.setFont(undefined, 'bold');
     const tripLabel = currentGroupCode
-        ? (document.getElementById('groupDisplayName').textContent.toUpperCase() + ' â€” EXPENSE REPORT')
-        : 'TRIPWISE â€” EXPENSE REPORT';
+        ? (document.getElementById('groupDisplayName').textContent.toUpperCase() + '  EXPENSE REPORT')
+        : 'TRIPWISE  EXPENSE REPORT';
     doc.text(tripLabel, 105, 24, { align: 'center' });
 
     doc.setFontSize(9); doc.setTextColor(100); doc.setFont(undefined, 'normal');
     const today = new Date().toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' });
-    doc.text(`Generated on: ${today}    |    Group Code: ${currentGroupCode || 'â€”'}`, 105, 36, { align: 'center' });
+    doc.text(`Generated on: ${today}    |    Group Code: ${currentGroupCode || ''}`, 105, 36, { align: 'center' });
 
     let y = 48;
 
@@ -780,7 +780,7 @@ function exportToPDF() {
         doc.text(`For: ${ex.description}`, 30, y); y += 4;
         const info = ex.splittingMode === 'custom' && ex.customAmounts
             ? 'Custom: ' + Object.entries(ex.customAmounts).map(([p,a]) => `${p}: Rs. ${a}`).join(', ')
-            : 'Equal split â€” ' + (ex.sharedWith ? ex.sharedWith.join(', ') : '');
+            : 'Equal split  ' + (ex.sharedWith ? ex.sharedWith.join(', ') : '');
         doc.text(info, 30, y); doc.setFontSize(10); y += 7;
     });
     y += 6;
@@ -809,7 +809,7 @@ function exportToPDF() {
                 if (y > 265) { doc.addPage(); y = 20; }
                 doc.setFillColor(255, 240, 245); doc.rect(20, y - 4, 170, 9, 'F');
                 doc.setTextColor(220, 53, 69); doc.setFont(undefined, 'bold');
-                doc.text(`${i + 1}. ${s.from} â†’ ${s.to}: Rs. ${s.amount}`, 25, y + 2);
+                doc.text(`${i + 1}. ${s.from}  ${s.to}: Rs. ${s.amount}`, 25, y + 2);
                 doc.setFont(undefined, 'normal'); doc.setTextColor(0); y += 10;
             });
         }
@@ -823,7 +823,7 @@ function exportToPDF() {
             doc.setFont(undefined, 'normal'); doc.text(`Paid Rs. ${paid}, Should pay Rs. ${owes}`, 55, y); y += 5;
             if (bal > 0) { doc.setFillColor(212, 237, 218); doc.rect(30, y - 4, 100, 7, 'F'); doc.setTextColor(21, 87, 36); doc.text(`+Rs. ${bal} (Gets back)`, 33, y + 1); }
             else if (bal < 0) { doc.setFillColor(248, 215, 218); doc.rect(30, y - 4, 100, 7, 'F'); doc.setTextColor(114, 28, 36); doc.text(`Rs. ${bal} (Owes)`, 33, y + 1); }
-            else { doc.setTextColor(0); doc.text('Settled âœ“', 33, y + 1); }
+            else { doc.setTextColor(0); doc.text('Settled ', 33, y + 1); }
             doc.setTextColor(0); y += 9;
         });
     }
