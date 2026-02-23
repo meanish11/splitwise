@@ -22,8 +22,20 @@
     <!-- PDF Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-    <!-- Firebase Configuration -->
-    <script src="firebase-config.js"></script>
+    <!-- Firebase Configuration (inline — key is domain-restricted, safe to commit) -->
+    <script>
+        const firebaseConfig = {
+            apiKey:            "AIzaSyBBqoBspVZQKfzYKSCv0sfh-wr_MNlZh18",
+            authDomain:        "splitwise-2d87f.firebaseapp.com",
+            projectId:         "splitwise-2d87f",
+            storageBucket:     "splitwise-2d87f.firebasestorage.app",
+            messagingSenderId: "59283590276",
+            appId:             "1:59283590276:web:e85e3c532a1739bf9406d1",
+            measurementId:     "G-JR68HM4362"
+        };
+        firebase.initializeApp(firebaseConfig);
+        window.db = firebase.firestore();
+    </script>
 </head>
 <body>
 <div class="app-shell">
