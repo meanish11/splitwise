@@ -1,78 +1,356 @@
-let people = [];
-let expenses = [];
-let activeTab = 'people';
+﻿// ============================================================
+//  TripWise â€” Main Script  (Firebase Firestore + Real-time sync)
+// ============================================================
+//  Firestore structure:
+//    Collection: "groups"
+//    Document ID: 6-digit group code  (e.g. "AB3C7X")
+//    Fields: { name, code, people: [], expenses: [], createdAt }
+// ============================================================
 
-// ----- Utility -----
-function saveData() {
-    localStorage.setItem('tripwise-people', JSON.stringify(people));
-    localStorage.setItem('tripwise-expenses', JSON.stringify(expenses));
+let people      = [];
+let expenses    = [];
+let activeTab   = 'people';
+let currentGroupCode  = null;   // code of the open group
+let groupUnsubscribe  = null;   // Firestore onSnapshot unsubscribe fn
+
+
+// ============================================================
+//  HELPERS
+// ============================================================
+
+/** Generate a random 6-char alphanumeric code (unambiguous chars) */
+function generateGroupCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return code;
 }
+
+/** Toast notification */
+function showToast(message, type = '') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast-item' + (type ? ' ' + type : '');
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all .3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+/** Show/hide a full-screen loading overlay while Firestore calls run */
+function setLoading(on, msg = 'Loadingâ€¦') {
+    let overlay = document.getElementById('fw-loading-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'fw-loading-overlay';
+        overlay.innerHTML = `<div class="fw-loading-box"><div class="fw-spinner"></div><p id="fw-loading-msg">${msg}</p></div>`;
+        overlay.style.cssText = `
+            position:fixed;inset:0;z-index:9999;
+            background:rgba(10,8,40,.82);backdrop-filter:blur(8px);
+            display:flex;align-items:center;justify-content:center;
+        `;
+        const box = overlay.querySelector('.fw-loading-box');
+        box.style.cssText = 'text-align:center;color:#E0E7FF;';
+        const spinner = overlay.querySelector('.fw-spinner');
+        spinner.style.cssText = `
+            width:44px;height:44px;border:4px solid rgba(139,92,246,.3);
+            border-top-color:#8B5CF6;border-radius:50%;
+            animation:fw-spin .8s linear infinite;margin:0 auto 16px;
+        `;
+        if (!document.querySelector('#fw-spin-keyframe')) {
+            const style = document.createElement('style');
+            style.id = 'fw-spin-keyframe';
+            style.textContent = '@keyframes fw-spin{to{transform:rotate(360deg)}}';
+            document.head.appendChild(style);
+        }
+        document.body.appendChild(overlay);
+    }
+    document.getElementById('fw-loading-msg').textContent = msg;
+    overlay.style.display = on ? 'flex' : 'none';
+}
+
+
+// ============================================================
+//  GROUP MANAGEMENT  (Firestore)
+// ============================================================
+
+/** Create a new group document in Firestore, show code modal */
+async function createGroup(tripName) {
+    setLoading(true, 'Creating your tripâ€¦');
+    try {
+        const groupsRef = db.collection('groups');
+        let code;
+        let attempts = 0;
+        // Find a unique code
+        do {
+            code = generateGroupCode();
+            attempts++;
+            const snap = await groupsRef.doc(code).get();
+            if (!snap.exists) break;
+        } while (attempts < 20);
+
+        await groupsRef.doc(code).set({
+            name:      tripName,
+            code:      code,
+            people:    [],
+            expenses:  [],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        setLoading(false);
+        // Show code-reveal modal
+        document.getElementById('modalTripName').textContent = tripName;
+        document.getElementById('modalCode').textContent = code;
+        document.getElementById('codeModal').style.display = 'flex';
+        document.getElementById('codeModal').dataset.pendingCode = code;
+
+    } catch (err) {
+        setLoading(false);
+        console.error('createGroup error:', err);
+        showToast('âŒ Could not create group. Check your Firebase config.', 'error');
+    }
+}
+
+/** Close the modal and enter the workspace */
+function closeModalAndEnter() {
+    const code = document.getElementById('codeModal').dataset.pendingCode;
+    document.getElementById('codeModal').style.display = 'none';
+    openWorkspace(code);
+}
+
+/** Handle clicking the modal overlay (outside card = close + enter) */
+function handleModalOverlayClick(e) {
+    if (e.target === document.getElementById('codeModal')) closeModalAndEnter();
+}
+
+/** Copy the code shown in the modal */
+function copyCodeFromModal() {
+    const code = document.getElementById('modalCode').textContent;
+    navigator.clipboard.writeText(code).then(() => showToast('Code copied! ðŸŽ‰', 'success'));
+}
+
+/** Join an existing group by code */
+async function joinGroup(code) {
+    setLoading(true, 'Looking up groupâ€¦');
+    try {
+        const snap = await db.collection('groups').doc(code).get();
+        setLoading(false);
+        if (!snap.exists) {
+            const errEl = document.getElementById('joinError');
+            errEl.style.display = 'block';
+            errEl.textContent = `âŒ No trip found with code "${code}". Please check and try again.`;
+            return;
+        }
+        openWorkspace(code);
+    } catch (err) {
+        setLoading(false);
+        console.error('joinGroup error:', err);
+        showToast('âŒ Could not connect to database. Check your Firebase config.', 'error');
+    }
+}
+
+/** Show the landing page with a specific tab highlighted */
+function showLandingTab(tab) {
+    document.querySelectorAll('.landing-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tnav-tab').forEach(el => el.classList.remove('active'));
+    const content = document.getElementById('ltab-' + tab);
+    const tabBtn  = document.querySelector('.tnav-tab[data-tab="' + tab + '"]');
+    if (content) content.classList.add('active');
+    if (tabBtn)  tabBtn.classList.add('active');
+    const errEl = document.getElementById('joinError');
+    if (errEl) errEl.style.display = 'none';
+}
+
+/**
+ * Open the workspace for a given code.
+ * Sets up a real-time Firestore onSnapshot listener so that any device
+ * updating the group is reflected instantly on all connected clients.
+ */
+function openWorkspace(code) {
+    // Unsubscribe from any previous listener
+    if (groupUnsubscribe) { groupUnsubscribe(); groupUnsubscribe = null; }
+
+    currentGroupCode = code;
+
+    // Switch views immediately (show a loading state in panels)
+    document.getElementById('landing-page').style.display   = 'none';
+    document.getElementById('workspace-page').style.display = 'flex';
+    document.getElementById('groupDisplayCode').textContent = code;
+    document.getElementById('groupDisplayName').textContent = 'â€¦';
+
+    initMobilePanels();
+
+    // â”€â”€ Real-time listener â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    groupUnsubscribe = db.collection('groups').doc(code)
+        .onSnapshot(snap => {
+            if (!snap.exists) {
+                showToast('âš  This group was deleted.', 'error');
+                goBackToLanding();
+                return;
+            }
+            const data = snap.data();
+
+            // Update runtime state
+            people   = data.people   || [];
+            expenses = data.expenses || [];
+
+            // Update header
+            document.getElementById('groupDisplayName').textContent = data.name || code;
+
+            // Refresh all panels
+            displayPeople();
+            displayExpenses();
+            updatePersonDropdown();
+            updateSharedWithCheckboxes();
+            updateCustomAmountInputs();
+            updateTotalExpenses();
+
+            const srEl = document.getElementById('settlementResults');
+            if (srEl) srEl.innerHTML = '<div class="no-data">Add people &amp; expenses, then click Calculate</div>';
+            const expBtn = document.getElementById('exportBtn');
+            if (expBtn) expBtn.style.display = 'none';
+        },
+        err => {
+            console.error('onSnapshot error:', err);
+            showToast('âš  Lost connection to group. Retryingâ€¦', 'error');
+        });
+}
+
+/** Go back to landing page, detach Firestore listener */
+function goBackToLanding() {
+    if (groupUnsubscribe) { groupUnsubscribe(); groupUnsubscribe = null; }
+    currentGroupCode = null;
+    document.getElementById('workspace-page').style.display = 'none';
+    document.getElementById('landing-page').style.display   = 'flex';
+    showLandingTab('home');
+}
+
+/** Copy the current group code to clipboard */
+function copyGroupCode() {
+    const code = document.getElementById('groupDisplayCode').textContent;
+    navigator.clipboard.writeText(code).then(() => showToast('Group code copied! Share it with your friends ðŸŽ‰', 'success'));
+}
+
+
+// ============================================================
+//  FIRESTORE WRITE HELPER
+// ============================================================
+
+/**
+ * Persist the current `people` and `expenses` arrays to Firestore.
+ * This is the single write point â€” all mutations call this.
+ */
+async function saveData() {
+    if (!currentGroupCode) return;
+    try {
+        await db.collection('groups').doc(currentGroupCode).update({
+            people:   people,
+            expenses: expenses
+        });
+    } catch (err) {
+        console.error('saveData error:', err);
+        showToast('âš  Could not save changes.', 'error');
+    }
+}
+
+
+// ============================================================
+//  DATA INITIALIZATION
+// ============================================================
 
 function loadData() {
-    const savedPeople = localStorage.getItem('tripwise-people');
-    const savedExpenses = localStorage.getItem('tripwise-expenses');
-    if (savedPeople) people = JSON.parse(savedPeople);
-    if (savedExpenses) expenses = JSON.parse(savedExpenses);
-    displayPeople();
-    displayExpenses();
-    updatePersonDropdown();
-    updateSharedWithCheckboxes();
-    updateCustomAmountInputs();
-    updateTotalExpenses();
-}
-
-// Tabs
-function switchTab(tab) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
-    document.getElementById(`${tab}-tab`).classList.add('active');
-    activeTab = tab;
-    
-    // Show/hide Money Settlement panel based on active tab and if expenses exist
-    updateSettlementPanelVisibility();
-}
-
-// Show/hide Money Settlement panel
-function updateSettlementPanelVisibility() {
-    const settlementPanel = document.getElementById('moneySettlementPanel');
-    // Only show if on expenses tab AND there are expenses
-    if (activeTab === 'expenses' && expenses.length > 0) {
-        settlementPanel.style.display = 'block';
-    } else {
-        settlementPanel.style.display = 'none';
+    // No localStorage â€” just show landing page on first load.
+    // The URL hash trick: if someone navigates with ?code=XXXXXX auto-join
+    const params = new URLSearchParams(window.location.search);
+    const codeParam = params.get('code');
+    if (codeParam && codeParam.length === 6) {
+        joinGroup(codeParam.toUpperCase());
+        return;
     }
+    document.getElementById('landing-page').style.display   = 'flex';
+    document.getElementById('workspace-page').style.display = 'none';
+    showLandingTab('home');
 }
 
-// ----- Splitting Mode Toggle -----
+
+// ============================================================
+//  PANEL / TAB SYSTEM
+// ============================================================
+
+const PANEL_MAP = {
+    people:     'panel-people',
+    expenses:   'panel-expenses',
+    settlement: 'moneySettlementPanel'
+};
+
+function isMobile() { return window.innerWidth <= 900; }
+
+function initMobilePanels() {
+    if (!isMobile()) return;
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('panel-active'));
+    const peoplePanelEl = document.getElementById(PANEL_MAP['people']);
+    if (peoplePanelEl) peoplePanelEl.classList.add('panel-active');
+    syncMobileTabHighlight('people');
+}
+
+function syncMobileTabHighlight(tab) {
+    document.querySelectorAll('.mobile-tab').forEach(btn => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+    });
+    const key = tab === 'settlement' ? 'moneySettlementPanel' : tab + '-tab';
+    const btn = document.querySelector(`.mobile-tab[data-target="${key}"]`);
+    if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected', 'true'); }
+}
+
+function switchTab(tab) {
+    activeTab = tab;
+    if (!isMobile()) return;
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('panel-active'));
+    const panelEl = document.getElementById(PANEL_MAP[tab]);
+    if (panelEl) panelEl.classList.add('panel-active');
+    syncMobileTabHighlight(tab);
+}
+
+function updateSettlementPanelVisibility() { /* handled by CSS / switchTab */ }
+
+window.addEventListener('resize', function() {
+    if (!isMobile()) {
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('panel-active'));
+    } else {
+        const anyActive = document.querySelector('.panel.panel-active');
+        if (!anyActive) initMobilePanels();
+    }
+});
+
+
+// ============================================================
+//  SPLITTING MODE
+// ============================================================
+
 function toggleSplittingMode() {
     const mode = document.querySelector('input[name="splittingMode"]:checked').value;
-    const equalSection = document.getElementById('equalSplitSection');
-    const customSection = document.getElementById('customAmountsSection');
-    
-    if (mode === 'equal') {
-        equalSection.style.display = 'block';
-        customSection.style.display = 'none';
-    } else {
-        equalSection.style.display = 'none';
-        customSection.style.display = 'block';
-        updateCustomAmountInputs();
-    }
+    document.getElementById('equalSplitSection').style.display  = mode === 'equal'  ? 'block' : 'none';
+    document.getElementById('customAmountsSection').style.display = mode === 'custom' ? 'block' : 'none';
+    if (mode === 'custom') updateCustomAmountInputs();
 }
 
-// ----- Custom Amount Functions -----
 function updateCustomAmountInputs() {
     const container = document.getElementById('customAmountInputs');
     container.innerHTML = '';
-    
     people.forEach(person => {
         const div = document.createElement('div');
         div.className = 'custom-amount-item';
         div.innerHTML = `
             <label>${person.name}:</label>
-            <input type="number" class="custom-amount-input" data-person="${person.name}" 
-                   placeholder="₹0" step="1" min="0" oninput="checkCustomTotal()">
-            <span>₹</span>
+            <input type="number" class="custom-amount-input" data-person="${person.name}"
+                   placeholder="â‚¹0" step="1" min="0" oninput="checkCustomTotal()">
+            <span>â‚¹</span>
         `;
         container.appendChild(div);
     });
@@ -80,695 +358,490 @@ function updateCustomAmountInputs() {
 }
 
 function checkCustomTotal() {
-    const inputs = document.querySelectorAll('.custom-amount-input');
-    const totalExpenseAmount = parseInt(document.getElementById('expenseAmount').value) || 0;
-    let customTotal = 0;
-    
-    inputs.forEach(input => {
-        customTotal += parseInt(input.value) || 0;
-    });
-    
-    const totalCheckDiv = document.getElementById('totalCheck');
-    
+    const inputs      = document.querySelectorAll('.custom-amount-input');
+    const expAmount   = parseInt(document.getElementById('expenseAmount').value) || 0;
+    let customTotal   = 0;
+    inputs.forEach(inp => { customTotal += parseInt(inp.value) || 0; });
+    const el = document.getElementById('totalCheck');
     if (customTotal === 0) {
-        totalCheckDiv.textContent = 'Enter amounts to see total';
-        totalCheckDiv.className = 'total-check';
-    } else if (customTotal === totalExpenseAmount && totalExpenseAmount > 0) {
-        totalCheckDiv.textContent = `✓ Perfect! Custom total: ₹${customTotal} matches expense amount`;
-        totalCheckDiv.className = 'total-check success';
+        el.textContent = 'Enter amounts to see total';
+        el.className = 'total-check';
+    } else if (customTotal === expAmount && expAmount > 0) {
+        el.textContent = `âœ“ Perfect! Custom total: â‚¹${customTotal} matches expense amount`;
+        el.className = 'total-check success';
     } else {
-        totalCheckDiv.textContent = `⚠ Custom total: ₹${customTotal}, Expense amount: ₹${totalExpenseAmount}`;
-        totalCheckDiv.className = 'total-check error';
+        el.textContent = `âš  Custom total: â‚¹${customTotal}, Expense amount: â‚¹${expAmount}`;
+        el.className = 'total-check error';
     }
 }
 
-// Update total check when expense amount changes
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('expenseAmount').addEventListener('input', checkCustomTotal);
-});
 
-// ----- Select All Functionality (for equal split) -----
+// ============================================================
+//  SELECT-ALL (equal split)
+// ============================================================
+
 function toggleSelectAll() {
     const checkboxes = document.querySelectorAll('.person-checkbox');
-    const selectAllBtn = document.getElementById('selectAllBtn');
-    
-    if (checkboxes.length === 0) {
-        alert('Please add people first!');
-        return;
-    }
-    
+    if (checkboxes.length === 0) { alert('Please add people first!'); return; }
     const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-    
-    if (allChecked) {
-        checkboxes.forEach(cb => cb.checked = false);
-        selectAllBtn.textContent = 'Select All';
-    } else {
-        checkboxes.forEach(cb => cb.checked = true);
-        selectAllBtn.textContent = 'Unselect All';
-    }
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+    document.getElementById('selectAllBtn').textContent = allChecked ? 'Select All' : 'Unselect All';
     updateSelectedCount();
 }
 
 function updateSelectedCount() {
     const checkboxes = document.querySelectorAll('.person-checkbox');
-    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
-    const selectedCountElement = document.getElementById('selectedCount');
-    const selectAllBtn = document.getElementById('selectAllBtn');
-    
-    if (selectedCountElement) selectedCountElement.textContent = `${checkedCount} selected`;
-    
-    if (selectAllBtn) {
-        if (checkedCount === 0) {
-            selectAllBtn.textContent = 'Select All';
-        } else if (checkedCount === checkboxes.length) {
-            selectAllBtn.textContent = 'Unselect All';
-        } else {
-            selectAllBtn.textContent = 'Select All';
-        }
-    }
+    const n = Array.from(checkboxes).filter(cb => cb.checked).length;
+    const el = document.getElementById('selectedCount');
+    const btn = document.getElementById('selectAllBtn');
+    if (el) el.textContent = `${n} selected`;
+    if (btn) btn.textContent = (n === 0) ? 'Select All' : (n === checkboxes.length ? 'Unselect All' : 'Select All');
 }
 
-// ----- Add People -----
+
+// ============================================================
+//  ADD / REMOVE PEOPLE
+// ============================================================
+
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('personForm').addEventListener('submit', function(e) {
+    document.getElementById('personForm').addEventListener('submit', async function(e) {
         e.preventDefault();
         const name = document.getElementById('personNameOnly').value.trim();
-        if (name && !people.find(p => p.name.toLowerCase() === name.toLowerCase())) {
-            const person = {
-                id: Date.now(),
-                name: name
-            };
-            people.push(person);
-            displayPeople();
-            updatePersonDropdown();
-            updateSharedWithCheckboxes();
-            updateCustomAmountInputs();
-            saveData();
-            document.getElementById('personForm').reset();
-            document.getElementById('settlementResults').innerHTML = 
-                '<div class="no-data">Click calculate button to see settlements</div>';
-        } else if (people.find(p => p.name.toLowerCase() === name.toLowerCase())) {
-            alert('This name already exists!');
+        if (!name) return;
+        if (people.find(p => p.name.toLowerCase() === name.toLowerCase())) {
+            alert('This name already exists!'); return;
         }
+        people.push({ id: Date.now(), name });
+        displayPeople();
+        updatePersonDropdown();
+        updateSharedWithCheckboxes();
+        updateCustomAmountInputs();
+        document.getElementById('personForm').reset();
+        document.getElementById('settlementResults').innerHTML =
+            '<div class="no-data">Click calculate button to see settlements</div>';
+        await saveData();
     });
+});
 
-    // ----- Add Expenses with equal or custom splitting -----
-    document.getElementById('expenseForm').addEventListener('submit', function(e) {
+async function removePerson(name) {
+    const hasExpenses = expenses.some(ex => ex.name === name || (ex.sharedWith && ex.sharedWith.includes(name)));
+    if (hasExpenses) { alert('Please remove all expenses involving this person first!'); return; }
+    if (!confirm(`Delete "${name}"?`)) return;
+    people = people.filter(p => p.name !== name);
+    displayPeople();
+    updatePersonDropdown();
+    updateSharedWithCheckboxes();
+    updateCustomAmountInputs();
+    document.getElementById('settlementResults').innerHTML =
+        '<div class="no-data">Click calculate button to see settlements</div>';
+    await saveData();
+}
+
+
+// ============================================================
+//  ADD / REMOVE EXPENSES
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('expenseForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const payer = document.getElementById('personSelect').value;
-        const amount = parseInt(document.getElementById('expenseAmount').value) || 0;
+        const payer       = document.getElementById('personSelect').value;
+        const amount      = parseInt(document.getElementById('expenseAmount').value) || 0;
         const description = document.getElementById('expenseDescription').value.trim();
-        const splittingMode = document.querySelector('input[name="splittingMode"]:checked').value;
+        const mode        = document.querySelector('input[name="splittingMode"]:checked').value;
 
-        if (!payer) {
-            alert('Please select who paid.');
-            return;
-        }
-        if (amount <= 0) {
-            alert('Please enter a valid amount.');
-            return;
-        }
+        if (!payer)    { alert('Please select who paid.'); return; }
+        if (amount <= 0) { alert('Please enter a valid amount.'); return; }
 
-        let sharedWith = [];
-        let customAmounts = {};
+        let sharedWith = [], customAmounts = {};
 
-        if (splittingMode === 'equal') {
-            const checkboxes = document.querySelectorAll('.person-checkbox');
-            sharedWith = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
-            if (sharedWith.length === 0) {
-                alert('Please select at least one person who shared this expense.');
-                return;
-            }
+        if (mode === 'equal') {
+            sharedWith = Array.from(document.querySelectorAll('.person-checkbox'))
+                             .filter(c => c.checked).map(c => c.value);
+            if (sharedWith.length === 0) { alert('Please select at least one person.'); return; }
         } else {
-            // Custom amounts mode
-            const customInputs = document.querySelectorAll('.custom-amount-input');
             let customTotal = 0;
-            
-            customInputs.forEach(input => {
-                const personName = input.dataset.person;
-                const personAmount = parseInt(input.value) || 0;
-                if (personAmount > 0) {
-                    sharedWith.push(personName);
-                    customAmounts[personName] = personAmount;
-                    customTotal += personAmount;
+            document.querySelectorAll('.custom-amount-input').forEach(inp => {
+                const pa = parseInt(inp.value) || 0;
+                if (pa > 0) {
+                    sharedWith.push(inp.dataset.person);
+                    customAmounts[inp.dataset.person] = pa;
+                    customTotal += pa;
                 }
             });
-            
-            if (sharedWith.length === 0) {
-                alert('Please enter amounts for at least one person.');
-                return;
-            }
-            
+            if (sharedWith.length === 0) { alert('Please enter amounts for at least one person.'); return; }
             if (customTotal !== amount) {
-                alert(`Custom amounts total (₹${customTotal}) must equal the expense amount (₹${amount}).`);
-                return;
+                alert(`Custom amounts total (â‚¹${customTotal}) must equal the expense amount (â‚¹${amount}).`); return;
             }
         }
 
-        const expense = {
-            id: Date.now(),
-            name: payer,
-            amount: amount,
-            description: description || 'General expense',
-            sharedWith: sharedWith,
-            splittingMode: splittingMode,
-            customAmounts: splittingMode === 'custom' ? customAmounts : null
-        };
-        
-        expenses.push(expense);
+        expenses.push({
+            id:           Date.now(),
+            name:         payer,
+            amount:       amount,
+            description:  description || 'General expense',
+            sharedWith:   sharedWith,
+            splittingMode: mode,
+            customAmounts: mode === 'custom' ? customAmounts : null
+        });
+
         displayExpenses();
         displayPeople();
         updateTotalExpenses();
-        updateSettlementPanelVisibility();
-        saveData();
         document.getElementById('expenseForm').reset();
         updateSharedWithCheckboxes();
         updateCustomAmountInputs();
         checkCustomTotal();
-        document.getElementById('settlementResults').innerHTML = 
+        document.getElementById('settlementResults').innerHTML =
             '<div class="no-data">Click calculate button to see settlements</div>';
+        await saveData();
     });
+
+    // Track expense amount field for custom-total check
+    const amtInput = document.getElementById('expenseAmount');
+    if (amtInput) amtInput.addEventListener('input', checkCustomTotal);
+
+    // Landing — Create Group form
+    const createForm = document.getElementById('createGroupForm');
+    if (createForm) {
+        createForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('tripName').value.trim();
+            if (!name) return;
+            createGroup(name);
+            this.reset();
+        });
+    }
+
+    // Landing — Join Group form
+    const joinForm = document.getElementById('joinGroupForm');
+    if (joinForm) {
+        joinForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const code = document.getElementById('joinCode').value.trim().toUpperCase();
+            if (code.length !== 6) {
+                const errEl = document.getElementById('joinError');
+                errEl.style.display = 'block';
+                errEl.textContent = '❌ Please enter a valid 6-character code.';
+                return;
+            }
+            joinGroup(code);
+            this.reset();
+        });
+    }
+
+    initMobilePanels();
 });
 
-// ----- UI functions -----
+async function removeExpense(id) {
+    if (!confirm('Delete this expense?')) return;
+    expenses = expenses.filter(ex => ex.id !== id);
+    displayExpenses();
+    displayPeople();
+    updateTotalExpenses();
+    updateSharedWithCheckboxes();
+    updateCustomAmountInputs();
+    document.getElementById('settlementResults').innerHTML =
+        '<div class="no-data">Click calculate button to see settlements</div>';
+    await saveData();
+}
+
+async function clearAllData() {
+    if (!confirm('Clear ALL people and expenses in this trip? This cannot be undone.')) return;
+    people = []; expenses = [];
+    await saveData();
+    displayPeople(); displayExpenses();
+    updatePersonDropdown(); updateSharedWithCheckboxes();
+    updateCustomAmountInputs(); updateTotalExpenses();
+    document.getElementById('settlementResults').innerHTML =
+        '<div class="no-data">First add people and expenses, then calculate</div>';
+}
+
+
+// ============================================================
+//  UI RENDER FUNCTIONS
+// ============================================================
+
 function displayPeople() {
     const container = document.getElementById('peopleContainer');
     if (people.length === 0) {
-        container.innerHTML = '<div class="no-data">No people added yet</div>';
-        return;
+        container.innerHTML = '<div class="no-data">No people added yet ðŸ¤·</div>'; return;
     }
-    const peopleHTML = people.map(person => `
-        <div class="person-item">
-            <div class="person-details">
-                <div class="person-name">${person.name}</div>
-            </div>
-            <button class="btn-delete-person" onclick="removePerson('${person.name}')" title="Delete person">×</button>
-        </div>
-    `).join('');
-    container.innerHTML = `<div class="people-grid">${peopleHTML}</div>`;
+    container.innerHTML = `<div class="people-grid">${
+        people.map(p => `
+            <div class="person-item">
+                <div class="person-details"><div class="person-name">${p.name}</div></div>
+                <button class="btn-delete-person" onclick="removePerson('${p.name}')" title="Delete">Ã—</button>
+            </div>`).join('')
+    }</div>`;
 }
 
 function displayExpenses() {
     const container = document.getElementById('expensesContainer');
     if (expenses.length === 0) {
-        container.innerHTML = '<div class="no-data">No expenses added yet</div>';
-        return;
+        container.innerHTML = '<div class="no-data">No expenses added yet ðŸ“­</div>'; return;
     }
-    container.innerHTML = expenses.map(expense => {
-        let sharingInfo = '';
-        if (expense.splittingMode === 'custom' && expense.customAmounts) {
-            const customDetails = Object.entries(expense.customAmounts)
-                .map(([person, amount]) => `${person}: ₹${amount}`)
-                .join(', ');
-            sharingInfo = `Custom amounts - ${customDetails}`;
-        } else {
-            sharingInfo = `Equal split - ${expense.sharedWith ? expense.sharedWith.join(', ') : ''}`;
-        }
-        
+    container.innerHTML = expenses.map(ex => {
+        let info = ex.splittingMode === 'custom' && ex.customAmounts
+            ? 'Custom: ' + Object.entries(ex.customAmounts).map(([p,a]) => `${p}: â‚¹${a}`).join(', ')
+            : 'Equal split â€” ' + (ex.sharedWith ? ex.sharedWith.join(', ') : '');
         return `
             <div class="expense-item">
                 <div class="expense-details">
-                    <div class="expense-name">${expense.name} paid ₹${expense.amount}</div>
-                    <div style="font-size: 0.85rem; color: #666;">
-                        For: ${expense.description} • ${sharingInfo}
-                    </div>
+                    <div class="expense-name">${ex.name} paid â‚¹${ex.amount}</div>
+                    <div class="expense-amount">For: ${ex.description} â€¢ ${info}</div>
                 </div>
-                <button class="btn-delete-expense" onclick="removeExpense(${expense.id})" title="Delete expense">×</button>
-            </div>
-        `;
+                <button class="btn-delete-expense" onclick="removeExpense(${ex.id})" title="Delete">Ã—</button>
+            </div>`;
     }).join('');
 }
 
 function updatePersonDropdown() {
-    const select = document.getElementById('personSelect');
-    select.innerHTML = '<option value="">Select person</option>';
-    people.forEach(person => {
-        const option = document.createElement('option');
-        option.value = person.name;
-        option.textContent = person.name;
-        select.appendChild(option);
+    const sel = document.getElementById('personSelect');
+    sel.innerHTML = '<option value="">Select person</option>';
+    people.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name; opt.textContent = p.name;
+        sel.appendChild(opt);
     });
 }
 
 function updateSharedWithCheckboxes() {
     const container = document.getElementById('sharedWithCheckboxes');
     container.innerHTML = '';
-    people.forEach(person => {
-        const div = document.createElement('span');
-        div.className = 'multi-checkbox-person';
-        div.innerHTML = `<label><input type="checkbox" class="person-checkbox" value="${person.name}" onchange="updateSelectedCount()" /> ${person.name}</label>`;
-        container.appendChild(div);
+    people.forEach(p => {
+        const span = document.createElement('span');
+        span.className = 'multi-checkbox-person';
+        span.innerHTML = `<label><input type="checkbox" class="person-checkbox" value="${p.name}" onchange="updateSelectedCount()"> ${p.name}</label>`;
+        container.appendChild(span);
     });
     updateSelectedCount();
 }
 
-function removePerson(name) {
-    const hasExpenses = expenses.some(expense => 
-        expense.name === name || (expense.sharedWith && expense.sharedWith.includes(name)));
-    if (hasExpenses) {
-        alert('Please remove all expenses for or involving this person first!');
-        return;
-    }
-    if (confirm(`Are you sure you want to delete "${name}"?`)) {
-        people = people.filter(person => person.name !== name);
-        displayPeople();
-        updatePersonDropdown();
-        updateSharedWithCheckboxes();
-        updateCustomAmountInputs();
-        saveData();
-        document.getElementById('settlementResults').innerHTML = 
-            '<div class="no-data">Click calculate button to see settlements</div>';
-    }
-}
-
-function removeExpense(id) {
-    if (confirm('Are you sure you want to delete this expense?')) {
-        expenses = expenses.filter(expense => expense.id !== id);
-        displayExpenses();
-        displayPeople();
-        updateTotalExpenses();
-        updateSettlementPanelVisibility();
-        updateSharedWithCheckboxes();
-        updateCustomAmountInputs();
-        saveData();
-        document.getElementById('settlementResults').innerHTML = 
-            '<div class="no-data">Click calculate button to see settlements</div>';
-    }
-}
-
 function updateTotalExpenses() {
-    const total = expenses.reduce((sum, expense) => sum + (expense.amount || 0), 0);
-    const totalDiv = document.getElementById('totalExpenses');
+    const total  = expenses.reduce((s, ex) => s + (ex.amount || 0), 0);
+    const div    = document.getElementById('totalExpenses');
     if (total > 0) {
-        totalDiv.style.display = 'block';
-        totalDiv.querySelector('.total-amount').textContent = `₹${total}`;
+        div.style.display = 'block';
+        div.querySelector('.total-amount').textContent = `â‚¹${total}`;
     } else {
-        totalDiv.style.display = 'none';
+        div.style.display = 'none';
     }
 }
 
-function clearAllData() {
-    if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-        people = [];
-        expenses = [];
-        localStorage.removeItem('tripwise-people');
-        localStorage.removeItem('tripwise-expenses');
-        displayPeople();
-        displayExpenses();
-        updatePersonDropdown();
-        updateSharedWithCheckboxes();
-        updateCustomAmountInputs();
-        updateTotalExpenses();
-        updateSettlementPanelVisibility();
-        document.getElementById('settlementResults').innerHTML =
-            '<div class="no-data">First add people and expenses, then calculate</div>';
-    }
-}
 
-// ----- Settlement Calculation with Custom Amounts -----
+// ============================================================
+//  SETTLEMENT CALCULATION
+// ============================================================
+
 function calculateSettlements() {
-    if (people.length === 0) {
-        document.getElementById('settlementResults').innerHTML = 
-            '<div class="no-data">Please add people first</div>';
-        return;
-    }
-    if (expenses.length === 0) {
-        document.getElementById('settlementResults').innerHTML = 
-            '<div class="no-data">Please add some expenses first</div>';
-        return;
-    }
+    if (people.length  === 0) { document.getElementById('settlementResults').innerHTML = '<div class="no-data">Please add people first</div>'; return; }
+    if (expenses.length === 0) { document.getElementById('settlementResults').innerHTML = '<div class="no-data">Please add some expenses first</div>'; return; }
 
-    const totalSpentByPerson = {};
-    const totalShouldPay = {};
-    people.forEach(person => {
-        totalSpentByPerson[person.name] = 0;
-        totalShouldPay[person.name] = 0;
-    });
+    const spent  = {}, shouldPay = {};
+    people.forEach(p => { spent[p.name] = 0; shouldPay[p.name] = 0; });
 
-    expenses.forEach(expense => {
-        totalSpentByPerson[expense.name] += expense.amount;
-        
-        if (expense.splittingMode === 'custom' && expense.customAmounts) {
-            // Use custom amounts
-            Object.entries(expense.customAmounts).forEach(([personName, amount]) => {
-                totalShouldPay[personName] += amount;
-            });
+    expenses.forEach(ex => {
+        spent[ex.name] += ex.amount;
+        if (ex.splittingMode === 'custom' && ex.customAmounts) {
+            Object.entries(ex.customAmounts).forEach(([name, amt]) => { shouldPay[name] += amt; });
         } else {
-            // Equal split
-            const share = expense.amount / expense.sharedWith.length;
-            expense.sharedWith.forEach(personName => {
-                totalShouldPay[personName] += share;
-            });
+            const share = ex.amount / ex.sharedWith.length;
+            ex.sharedWith.forEach(name => { shouldPay[name] += share; });
         }
     });
 
     const balances = {};
-    people.forEach(person => {
-        balances[person.name] = Math.round(totalSpentByPerson[person.name] - totalShouldPay[person.name]);
-    });
+    people.forEach(p => { balances[p.name] = Math.round(spent[p.name] - shouldPay[p.name]); });
 
     const settlements = generateOptimalSettlements(balances);
-    const totalAmount = expenses.reduce((s, e) => s + (e.amount || 0), 0);
-    displaySettlements(settlements, totalSpentByPerson, totalShouldPay, totalAmount);
+    const totalAmt    = expenses.reduce((s, ex) => s + (ex.amount || 0), 0);
+    displaySettlements(settlements, spent, shouldPay, totalAmt);
 }
 
 function generateOptimalSettlements(balances) {
-    const settlements = [];
     const creditors = [], debtors = [];
-    Object.entries(balances).forEach(([person, balance]) => {
-        if (balance > 0) creditors.push({ name: person, amount: balance });
-        else if (balance < 0) debtors.push({ name: person, amount: -balance });
+    Object.entries(balances).forEach(([name, bal]) => {
+        if (bal > 0) creditors.push({ name, amount: bal });
+        else if (bal < 0) debtors.push({ name, amount: -bal });
     });
     creditors.sort((a, b) => b.amount - a.amount);
     debtors.sort((a, b) => b.amount - a.amount);
+    const settlements = [];
     let i = 0, j = 0;
     while (i < creditors.length && j < debtors.length) {
-        const creditor = creditors[i];
-        const debtor = debtors[j];
-        const amount = Math.min(creditor.amount, debtor.amount);
-        if (amount > 0) {
-            settlements.push({
-                from: debtor.name, to: creditor.name, amount: amount
-            });
-        }
-        creditor.amount -= amount;
-        debtor.amount -= amount;
-        if (creditor.amount <= 0) i++;
-        if (debtor.amount <= 0) j++;
+        const c = creditors[i], d = debtors[j];
+        const amt = Math.min(c.amount, d.amount);
+        if (amt > 0) settlements.push({ from: d.name, to: c.name, amount: amt });
+        c.amount -= amt; d.amount -= amt;
+        if (c.amount <= 0) i++;
+        if (d.amount <= 0) j++;
     }
     return settlements;
 }
 
-function displaySettlements(settlements, totalSpentByPerson, totalShouldPay, totalAmount) {
+function displaySettlements(settlements, spent, shouldPay, totalAmt) {
     const container = document.getElementById('settlementResults');
+    let html = '';
+
     if (settlements.length === 0) {
-        container.innerHTML = `
-            <div class="settlements">
-                <h3 style="color: #28a745; text-align: center; margin-bottom: 15px;">
-                    🎉 Everyone is settled!
-                </h3>
-                <div style="text-align: center; color: #666;">
-                    Everyone has paid their fair share.
-                </div>
-            </div>
-            ${summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount)}
-        `;
-        return;
+        html = `
+            <div class="settlement-item" style="border-left-color:#10B981;">
+                <div class="settlement-text">ðŸŽ‰ Everyone is settled up!</div>
+                <div class="settlement-amount" style="color:#34D399;">No payments needed</div>
+            </div>`;
+    } else {
+        html = `<div style="font-size:.8rem;color:rgba(199,210,254,.6);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">ðŸ’¸ Who Pays Whom</div>`;
+        settlements.forEach(s => {
+            html += `
+                <div class="settlement-item debt">
+                    <div class="settlement-text"><strong>${s.from}</strong> â†’ <strong>${s.to}</strong></div>
+                    <div class="settlement-amount">â‚¹${s.amount}</div>
+                </div>`;
+        });
     }
-    let html = `
-        <div class="settlements">
-            <h3 style="color: #333; margin-bottom: 15px;">💸 Who Should Pay Whom:</h3>
-    `;
-    settlements.forEach(settlement => {
+
+    // Breakdown
+    html += `<div style="font-size:.8rem;color:rgba(199,210,254,.6);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin:20px 0 10px;">ðŸ“Š Breakdown</div>`;
+    people.forEach(p => {
+        const s = Math.round(spent[p.name]), sh = Math.round(shouldPay[p.name]), bal = s - sh;
         html += `
-            <div class="settlement-item debt">
-                <div class="settlement-text">
-                    <strong>${settlement.from}</strong> should pay <strong>${settlement.to}</strong>
+            <div class="settlement-item ${bal < 0 ? 'debt' : ''}">
+                <div class="settlement-text"><strong>${p.name}</strong> paid â‚¹${s}, owes â‚¹${sh}</div>
+                <div class="settlement-amount" style="color:${bal > 0 ? '#34D399' : bal < 0 ? '#F87171' : '#A5B4FC'}">
+                    ${bal > 0 ? '+' : ''}â‚¹${bal}
                 </div>
-                <div class="settlement-amount" style="color: #dc3545;">
-                    ₹${settlement.amount}
-                </div>
-            </div>
-        `;
+            </div>`;
     });
-    html += '</div>' + summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount);
+
     container.innerHTML = html;
-    
-    // Show export button after calculation
-    document.getElementById('exportBtn').style.display = 'block';
+    const expBtn = document.getElementById('exportBtn');
+    if (expBtn) expBtn.style.display = 'block';
 }
 
-function summaryBreakdown(totalSpentByPerson, totalShouldPay, totalAmount) {
-    let html = `
-        <div class="settlements" style="margin-top: 20px;">
-            <h3 style="color: #333; margin-bottom: 15px;">📈 Breakdown:</h3>
-            <div style="margin-bottom: 15px; text-align: center; background: #e9ecef; padding: 10px; border-radius: 8px;">
-                <strong>Total Expenses: ₹${Math.round(totalAmount)}</strong>
-            </div>
-    `;
-    people.forEach(person => {
-        const spent = Math.round(totalSpentByPerson[person.name]);
-        const share = Math.round(totalShouldPay[person.name]);
-        const balance = spent - share;
-        html += `
-            <div class="settlement-item ${balance > 0 ? '' : 'debt'}">
-                <div class="settlement-text">
-                    <strong>${person.name}</strong> paid ₹${spent}, should pay ₹${share}
-                </div>
-                <div class="settlement-amount" style="color: ${balance > 0 ? '#28a745' : balance < 0 ? '#dc3545' : '#333'};">
-                    ${balance > 0 ? '+' : ''}₹${balance}
-                </div>
-            </div>
-        `;
-    });
-    html += '</div>';
-    return html;
-}
 
-// ----- PDF Export Function -----
+// ============================================================
+//  PDF EXPORT  (unchanged logic, updated colors)
+// ============================================================
+
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    
-    // Add border and professional styling
-    doc.setDrawColor(102, 126, 234);
+
+    doc.setDrawColor(99, 102, 241);
     doc.setLineWidth(0.5);
     doc.rect(10, 10, 190, 277);
-    
-    // Title with background
-    doc.setFillColor(102, 126, 234);
+
+    doc.setFillColor(67, 56, 202);
     doc.rect(15, 15, 180, 15, 'F');
     doc.setFontSize(18);
     doc.setTextColor(255, 255, 255);
     doc.setFont(undefined, 'bold');
-    doc.text('TRIPWISE - EXPENSE REPORT', 105, 24, { align: 'center' });
-    
-    // Date
-    doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.setFont(undefined, 'normal');
-    const today = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-    doc.text(`Generated on: ${today}`, 105, 36, { align: 'center' });
-    
-    let yPos = 48;
-    
-    // Total Expenses Box
+    const tripLabel = currentGroupCode
+        ? (document.getElementById('groupDisplayName').textContent.toUpperCase() + ' â€” EXPENSE REPORT')
+        : 'TRIPWISE â€” EXPENSE REPORT';
+    doc.text(tripLabel, 105, 24, { align: 'center' });
+
+    doc.setFontSize(9); doc.setTextColor(100); doc.setFont(undefined, 'normal');
+    const today = new Date().toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' });
+    doc.text(`Generated on: ${today}    |    Group Code: ${currentGroupCode || 'â€”'}`, 105, 36, { align: 'center' });
+
+    let y = 48;
+
     if (expenses.length > 0) {
-        const totalAmount = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+        const tot = expenses.reduce((s, ex) => s + (ex.amount || 0), 0);
         doc.setFillColor(240, 240, 240);
-        doc.rect(15, yPos - 5, 180, 12, 'F');
-        doc.setFontSize(13);
-        doc.setTextColor(0);
-        doc.setFont(undefined, 'bold');
-        doc.text(`TOTAL TRIP EXPENSES: Rs. ${totalAmount}`, 105, yPos + 2, { align: 'center' });
-        doc.setFont(undefined, 'normal');
-        yPos += 16;
+        doc.rect(15, y - 5, 180, 12, 'F');
+        doc.setFontSize(13); doc.setTextColor(0); doc.setFont(undefined, 'bold');
+        doc.text(`TOTAL TRIP EXPENSES: Rs. ${tot}`, 105, y + 2, { align: 'center' });
+        doc.setFont(undefined, 'normal'); y += 16;
     }
-    
-    // People Section
-    doc.setDrawColor(102, 126, 234);
-    doc.setLineWidth(0.3);
-    doc.line(15, yPos, 195, yPos);
-    yPos += 6;
-    
-    doc.setFontSize(13);
-    doc.setTextColor(102, 126, 234);
-    doc.setFont(undefined, 'bold');
-    doc.text('PEOPLE IN THE TRIP', 20, yPos);
-    doc.setFont(undefined, 'normal');
-    yPos += 7;
-    
-    doc.setFontSize(10);
-    doc.setTextColor(0);
-    if (people.length === 0) {
-        doc.text('No people added', 25, yPos);
-        yPos += 7;
-    } else {
-        people.forEach((person, index) => {
-            doc.text(`${index + 1}. ${person.name}`, 25, yPos);
-            yPos += 6;
-        });
-    }
-    yPos += 6;
-    
-    // Expenses Section
-    if (yPos > 245) { doc.addPage(); yPos = 20; }
-    doc.setDrawColor(102, 126, 234);
-    doc.line(15, yPos, 195, yPos);
-    yPos += 6;
-    
-    doc.setFontSize(13);
-    doc.setTextColor(102, 126, 234);
-    doc.setFont(undefined, 'bold');
-    doc.text('ALL EXPENSES', 20, yPos);
-    doc.setFont(undefined, 'normal');
-    yPos += 7;
-    
-    doc.setFontSize(10);
-    doc.setTextColor(0);
-    if (expenses.length === 0) {
-        doc.text('No expenses added', 25, yPos);
-        yPos += 7;
-    } else {
-        expenses.forEach((expense, index) => {
-            if (yPos > 265) { doc.addPage(); yPos = 20; }
-            
-            doc.setFont(undefined, 'bold');
-            doc.text(`${index + 1}. ${expense.name} paid Rs. ${expense.amount}`, 25, yPos);
-            yPos += 5;
-            
-            doc.setFont(undefined, 'normal');
-            doc.setFontSize(9);
-            doc.text(`For: ${expense.description}`, 30, yPos);
-            yPos += 4;
-            
-            if (expense.splittingMode === 'custom' && expense.customAmounts) {
-                const customDetails = Object.entries(expense.customAmounts)
-                    .map(([person, amount]) => `${person}: Rs. ${amount}`)
-                    .join(', ');
-                doc.text(`Custom amounts - ${customDetails}`, 30, yPos);
-            } else {
-                doc.text(`Equal split - ${expense.sharedWith ? expense.sharedWith.join(', ') : ''}`, 30, yPos);
-            }
-            doc.setFontSize(10);
-            yPos += 7;
-        });
-    }
-    yPos += 6;
-    
-    // Settlements Section
+
+    const section = (title) => {
+        if (y > 245) { doc.addPage(); y = 20; }
+        doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.3);
+        doc.line(15, y, 195, y); y += 6;
+        doc.setFontSize(13); doc.setTextColor(99, 102, 241); doc.setFont(undefined, 'bold');
+        doc.text(title, 20, y); doc.setFont(undefined, 'normal'); y += 7;
+        doc.setFontSize(10); doc.setTextColor(0);
+    };
+
+    section('PEOPLE IN THE TRIP');
+    if (people.length === 0) { doc.text('No people added', 25, y); y += 7; }
+    else people.forEach((p, i) => { doc.text(`${i + 1}. ${p.name}`, 25, y); y += 6; });
+    y += 6;
+
+    section('ALL EXPENSES');
+    if (expenses.length === 0) { doc.text('No expenses added', 25, y); y += 7; }
+    else expenses.forEach((ex, i) => {
+        if (y > 265) { doc.addPage(); y = 20; }
+        doc.setFont(undefined, 'bold'); doc.text(`${i + 1}. ${ex.name} paid Rs. ${ex.amount}`, 25, y); y += 5;
+        doc.setFont(undefined, 'normal'); doc.setFontSize(9);
+        doc.text(`For: ${ex.description}`, 30, y); y += 4;
+        const info = ex.splittingMode === 'custom' && ex.customAmounts
+            ? 'Custom: ' + Object.entries(ex.customAmounts).map(([p,a]) => `${p}: Rs. ${a}`).join(', ')
+            : 'Equal split â€” ' + (ex.sharedWith ? ex.sharedWith.join(', ') : '');
+        doc.text(info, 30, y); doc.setFontSize(10); y += 7;
+    });
+    y += 6;
+
     if (expenses.length > 0 && people.length > 0) {
-        if (yPos > 250) { doc.addPage(); yPos = 20; }
-        
-        // Calculate settlements
-        const totalSpentByPerson = {};
-        const totalShouldPay = {};
-        people.forEach(person => {
-            totalSpentByPerson[person.name] = 0;
-            totalShouldPay[person.name] = 0;
+        const sp = {}, sh = {};
+        people.forEach(p => { sp[p.name] = 0; sh[p.name] = 0; });
+        expenses.forEach(ex => {
+            sp[ex.name] += ex.amount;
+            if (ex.splittingMode === 'custom' && ex.customAmounts)
+                Object.entries(ex.customAmounts).forEach(([n, a]) => { sh[n] += a; });
+            else { const s = ex.amount / ex.sharedWith.length; ex.sharedWith.forEach(n => { sh[n] += s; }); }
         });
-        
-        expenses.forEach(expense => {
-            totalSpentByPerson[expense.name] += expense.amount;
-            
-            if (expense.splittingMode === 'custom' && expense.customAmounts) {
-                Object.entries(expense.customAmounts).forEach(([personName, amount]) => {
-                    totalShouldPay[personName] += amount;
-                });
-            } else {
-                const share = expense.amount / expense.sharedWith.length;
-                expense.sharedWith.forEach(personName => {
-                    totalShouldPay[personName] += share;
-                });
-            }
-        });
-        
         const balances = {};
-        people.forEach(person => {
-            balances[person.name] = Math.round(totalSpentByPerson[person.name] - totalShouldPay[person.name]);
-        });
-        
+        people.forEach(p => { balances[p.name] = Math.round(sp[p.name] - sh[p.name]); });
         const settlements = generateOptimalSettlements(balances);
-        
-        // Settlement Plan Section
-        if (yPos > 240) { doc.addPage(); yPos = 20; }
-        doc.setDrawColor(102, 126, 234);
-        doc.line(15, yPos, 195, yPos);
-        yPos += 6;
-        
-        doc.setFontSize(13);
-        doc.setTextColor(102, 126, 234);
-        doc.setFont(undefined, 'bold');
-        doc.text('SETTLEMENT PLAN', 20, yPos);
-        doc.setFont(undefined, 'normal');
-        yPos += 7;
-        
-        doc.setFontSize(10);
-        doc.setTextColor(0);
-        
+
+        section('SETTLEMENT PLAN');
         if (settlements.length === 0) {
-            doc.setFillColor(212, 237, 218);
-            doc.rect(20, yPos - 4, 170, 10, 'F');
-            doc.setTextColor(21, 87, 36);
-            doc.setFont(undefined, 'bold');
-            doc.text('Everyone is settled! No payments needed.', 25, yPos + 2);
-            doc.setFont(undefined, 'normal');
-            doc.setTextColor(0);
-            yPos += 10;
+            doc.setFillColor(212, 237, 218); doc.rect(20, y - 4, 170, 10, 'F');
+            doc.setTextColor(21, 87, 36); doc.setFont(undefined, 'bold');
+            doc.text('Everyone is settled! No payments needed.', 25, y + 2);
+            doc.setFont(undefined, 'normal'); doc.setTextColor(0); y += 10;
         } else {
-            settlements.forEach((settlement, index) => {
-                if (yPos > 265) { doc.addPage(); yPos = 20; }
-                doc.setFillColor(255, 240, 245);
-                doc.rect(20, yPos - 4, 170, 9, 'F');
-                doc.setTextColor(220, 53, 69);
-                doc.setFont(undefined, 'bold');
-                doc.text(`${index + 1}. ${settlement.from} should pay ${settlement.to}: Rs. ${settlement.amount}`, 25, yPos + 2);
-                doc.setFont(undefined, 'normal');
-                doc.setTextColor(0);
-                yPos += 10;
+            settlements.forEach((s, i) => {
+                if (y > 265) { doc.addPage(); y = 20; }
+                doc.setFillColor(255, 240, 245); doc.rect(20, y - 4, 170, 9, 'F');
+                doc.setTextColor(220, 53, 69); doc.setFont(undefined, 'bold');
+                doc.text(`${i + 1}. ${s.from} â†’ ${s.to}: Rs. ${s.amount}`, 25, y + 2);
+                doc.setFont(undefined, 'normal'); doc.setTextColor(0); y += 10;
             });
         }
-        yPos += 6;
-        
-        // Individual Breakdown Section
-        if (yPos > 225) { doc.addPage(); yPos = 20; }
-        doc.setDrawColor(102, 126, 234);
-        doc.line(15, yPos, 195, yPos);
-        yPos += 6;
-        
-        doc.setFontSize(13);
-        doc.setTextColor(102, 126, 234);
-        doc.setFont(undefined, 'bold');
-        doc.text('INDIVIDUAL BREAKDOWN', 20, yPos);
-        doc.setFont(undefined, 'normal');
-        yPos += 7;
-        
-        doc.setFontSize(10);
-        doc.setTextColor(0);
-        people.forEach(person => {
-            if (yPos > 265) { doc.addPage(); yPos = 20; }
-            const spent = Math.round(totalSpentByPerson[person.name]);
-            const share = Math.round(totalShouldPay[person.name]);
-            const balance = spent - share;
-            
-            doc.setFont(undefined, 'bold');
-            doc.text(`${person.name}:`, 25, yPos);
-            doc.setFont(undefined, 'normal');
-            doc.text(`Paid Rs. ${spent}, Should pay Rs. ${share}`, 55, yPos);
-            yPos += 5;
-            
-            if (balance > 0) {
-                doc.setFillColor(212, 237, 218);
-                doc.rect(30, yPos - 4, 100, 7, 'F');
-                doc.setTextColor(21, 87, 36);
-                doc.text(`Balance: +Rs. ${balance} (Gets back)`, 33, yPos + 1);
-            } else if (balance < 0) {
-                doc.setFillColor(248, 215, 218);
-                doc.rect(30, yPos - 4, 100, 7, 'F');
-                doc.setTextColor(114, 28, 36);
-                doc.text(`Balance: Rs. ${balance} (Owes)`, 33, yPos + 1);
-            } else {
-                doc.setTextColor(0);
-                doc.text(`Balance: Rs. 0 (Settled)`, 33, yPos + 1);
-            }
-            doc.setTextColor(0);
-            yPos += 9;
+        y += 6;
+
+        section('INDIVIDUAL BREAKDOWN');
+        people.forEach(p => {
+            if (y > 265) { doc.addPage(); y = 20; }
+            const paid = Math.round(sp[p.name]), owes = Math.round(sh[p.name]), bal = paid - owes;
+            doc.setFont(undefined, 'bold'); doc.text(`${p.name}:`, 25, y);
+            doc.setFont(undefined, 'normal'); doc.text(`Paid Rs. ${paid}, Should pay Rs. ${owes}`, 55, y); y += 5;
+            if (bal > 0) { doc.setFillColor(212, 237, 218); doc.rect(30, y - 4, 100, 7, 'F'); doc.setTextColor(21, 87, 36); doc.text(`+Rs. ${bal} (Gets back)`, 33, y + 1); }
+            else if (bal < 0) { doc.setFillColor(248, 215, 218); doc.rect(30, y - 4, 100, 7, 'F'); doc.setTextColor(114, 28, 36); doc.text(`Rs. ${bal} (Owes)`, 33, y + 1); }
+            else { doc.setTextColor(0); doc.text('Settled âœ“', 33, y + 1); }
+            doc.setTextColor(0); y += 9;
         });
     }
-    
-    // Footer
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
+
+    const pages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
         doc.setPage(i);
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(`Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
+        doc.setFontSize(8); doc.setTextColor(150);
+        doc.text(`Page ${i} of ${pages}`, 105, 290, { align: 'center' });
         doc.text('Generated by TripWise', 195, 290, { align: 'right' });
     }
-    
-    // Save PDF
-    doc.save('TripWise-Expense-Report.pdf');
+
+    const name = (document.getElementById('groupDisplayName').textContent || 'TripWise').replace(/\s+/g, '-');
+    doc.save(`${name}-Expense-Report.pdf`);
 }
 
-// Init
+
+// ============================================================
+//  BOOT
+// ============================================================
 window.addEventListener('load', loadData);

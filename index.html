@@ -2,116 +2,389 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TripWise</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#6366F1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="TripWise – Split group expenses easily, equal or custom amounts!">
+    <title>TripWise – Group Expense Splitter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="ui-enhancements.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <!-- PDF Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Firebase Configuration -->
+    <script src="firebase-config.js"></script>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1> TripWise</h1>
-            <p>Easy way to split group expenses - equal or custom amounts!</p>
-        </div>
-        <div class="split-view">
-            <div class="left-panel">
-                <h2 class="panel-title"> Add People & Money</h2>
-                <div class="tabs">
-                    <button class="tab active" onclick="switchTab('people')">Add People</button>
-                    <button class="tab" onclick="switchTab('expenses')">Add Expenses</button>
+<div class="app-shell">
+
+    <!-- ═══════════════════════════════════════════════════
+         LANDING PAGE
+    ═══════════════════════════════════════════════════ -->
+    <div id="landing-page">
+
+        <!-- ── Top Navigation Bar ── -->
+        <nav class="top-nav">
+            <div class="tnav-brand">
+                <div class="tnav-logo">✈️</div>
+                <span class="tnav-name">Trip<span>Wise</span></span>
+            </div>
+            <div class="tnav-spacer"></div>
+            <div class="tnav-tabs">
+                <button class="tnav-tab active" data-tab="home" onclick="showLandingTab('home')">
+                    <span class="tnav-tab-icon">🏠</span> Home
+                </button>
+                <button class="tnav-tab" data-tab="create" onclick="showLandingTab('create')">
+                    <span class="tnav-tab-icon">➕</span> Create Group
+                </button>
+                <button class="tnav-tab" data-tab="join" onclick="showLandingTab('join')">
+                    <span class="tnav-tab-icon">🔗</span> Join Group
+                </button>
+            </div>
+        </nav>
+
+        <!-- ── HOME TAB ── -->
+        <div id="ltab-home" class="landing-content active">
+            <div class="hero-section">
+                <div class="hero-badge">✨ Smart Trip Expense Splitting</div>
+                <h1 class="hero-title">Split Trips.<br><span class="hero-title-accent">Not Friendships.</span></h1>
+                <p class="hero-sub">
+                    TripWise makes it easy to track group expenses, split costs fairly, and settle up instantly —
+                    so everyone enjoys the trip without the awkward money talk.
+                </p>
+                <div class="hero-actions">
+                    <button class="btn btn-hero-create" onclick="showLandingTab('create')">
+                        ➕ Create a Group
+                    </button>
+                    <button class="btn btn-hero-join" onclick="showLandingTab('join')">
+                        🔗 Join with Code
+                    </button>
                 </div>
-                <div id="people-tab" class="tab-content active">
-                    <form id="personForm">
-                        <div class="form-group">
-                            <label for="personNameOnly">Person's Name:</label>
-                            <input type="text" id="personNameOnly" placeholder="Enter name" required>
-                        </div>
-                        <button type="submit" class="btn btn-add-person">Add Person</button>
-                    </form>
-                    <h3 style="margin-top: 30px; margin-bottom: 15px; color: #333;"> All People</h3>
-                    <div id="peopleContainer">
-                        <div class="no-data">No people added yet</div>
+                <div class="hero-stats">
+                    <div class="hero-stat">
+                        <div class="hero-stat-num">100%</div>
+                        <div class="hero-stat-label">Free to use</div>
                     </div>
-                    <button class="btn btn-clear" onclick="clearAllData()">Clear All Data</button>
+                    <div class="hero-divider"></div>
+                    <div class="hero-stat">
+                        <div class="hero-stat-num">6-digit</div>
+                        <div class="hero-stat-label">Instant codes</div>
+                    </div>
+                    <div class="hero-divider"></div>
+                    <div class="hero-stat">
+                        <div class="hero-stat-num">0 math</div>
+                        <div class="hero-stat-label">Auto-settled</div>
+                    </div>
                 </div>
-                <div id="expenses-tab" class="tab-content">
-                    <form id="expenseForm">
+            </div>
+
+            <div class="features-section">
+                <div class="section-header">
+                    <span class="section-eyebrow">Features</span>
+                    <h2 class="section-title">Everything your group needs</h2>
+                    <p class="section-sub">From adding members to exporting reports — all the tools for stress-free trip finances.</p>
+                </div>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="fc-icon-wrap violet">👥</div>
+                        <div class="fc-title">Add Trip Members</div>
+                        <div class="fc-desc">Add all your travel buddies to the group and track who paid what, all in one place.</div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="fc-icon-wrap blue">💳</div>
+                        <div class="fc-title">Log Expenses</div>
+                        <div class="fc-desc">Record every expense — split equally across the group or set custom amounts per person.</div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="fc-icon-wrap green">🔑</div>
+                        <div class="fc-title">Share via Code</div>
+                        <div class="fc-desc">Get a unique 6-digit code for your group. Share it with friends so they can join and add expenses.</div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="fc-icon-wrap amber">🧮</div>
+                        <div class="fc-title">Auto Settlement</div>
+                        <div class="fc-desc">One click calculates exactly who owes whom. Minimum transactions, maximum clarity.</div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="fc-icon-wrap rose">📄</div>
+                        <div class="fc-title">Export to PDF</div>
+                        <div class="fc-desc">Download a professional expense report with the full breakdown for your records.</div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="fc-icon-wrap sky">📱</div>
+                        <div class="fc-title">Works Everywhere</div>
+                        <div class="fc-desc">Fully responsive — works great on mobile, tablet, and desktop browsers.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- How it Works -->
+            <div class="how-it-works">
+                <h2 class="hiw-title">How it works</h2>
+                <p class="hiw-sub">Three simple steps to go from trip idea to settled bills.</p>
+                <div class="hiw-steps">
+                    <div class="hiw-step">
+                        <div class="hiw-num">1</div>
+                        <div class="hiw-text">
+                            <strong>Create a group</strong>
+                            <span>Enter your trip name to get a unique 6-digit code</span>
+                        </div>
+                    </div>
+                    <div class="hiw-arrow">→</div>
+                    <div class="hiw-step">
+                        <div class="hiw-num">2</div>
+                        <div class="hiw-text">
+                            <strong>Share the code</strong>
+                            <span>Friends join by entering the code on the Join tab</span>
+                        </div>
+                    </div>
+                    <div class="hiw-arrow">→</div>
+                    <div class="hiw-step">
+                        <div class="hiw-num">3</div>
+                        <div class="hiw-text">
+                            <strong>Track & settle</strong>
+                            <span>Add expenses, calculate settlements, export PDF</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── CREATE GROUP TAB ── -->
+        <div id="ltab-create" class="landing-content">
+            <div class="form-page">
+                <div class="form-card">
+                    <div class="fcard-icon">🗺️</div>
+                    <h2 class="fcard-title">Create a New Trip</h2>
+                    <p class="fcard-sub">
+                        Give your trip a name. We'll generate a unique 6-digit code you can share with your travel group.
+                    </p>
+                    <form id="createGroupForm" autocomplete="off">
                         <div class="form-group">
-                            <label for="personSelect">Who paid the money:</label>
+                            <label for="tripName">Trip Name</label>
+                            <input type="text" id="tripName" placeholder="e.g. Taj Mahal Trip, Goa 2026, Europe Tour…"
+                                   required autocomplete="off" maxlength="60">
+                        </div>
+                        <button type="submit" class="btn btn-primary">🚀 Create Group</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── JOIN GROUP TAB ── -->
+        <div id="ltab-join" class="landing-content">
+            <div class="form-page">
+                <div class="form-card">
+                    <div class="fcard-icon">🔑</div>
+                    <h2 class="fcard-title">Join an Existing Trip</h2>
+                    <p class="fcard-sub">
+                        Ask your group creator for the 6-digit code and enter it below to join and add your expenses.
+                    </p>
+                    <form id="joinGroupForm" autocomplete="off">
+                        <div class="form-group">
+                            <label for="joinCode">6-Digit Group Code</label>
+                            <input type="text" id="joinCode" placeholder="e.g. A3B7X2" maxlength="6" required
+                                   autocomplete="off" spellcheck="false"
+                                   oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9]/g,'')">
+                        </div>
+                        <button type="submit" class="btn btn-secondary">🔗 Join Group</button>
+                    </form>
+                    <div id="joinError" class="join-error" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /landing-page -->
+
+    <!-- ═══════════════════════════════════════════════════
+         CODE REVEAL MODAL  (shown after group creation)
+    ═══════════════════════════════════════════════════ -->
+    <div id="codeModal" class="modal-overlay" style="display:none;" onclick="handleModalOverlayClick(event)">
+        <div class="modal-card">
+            <div class="modal-icon">🎉</div>
+            <h2 class="modal-title">Group Created!</h2>
+            <p class="modal-trip-name" id="modalTripName">Taj Mahal Trip</p>
+            <p class="modal-desc">Share this code with your travel group so they can join:</p>
+            <div class="modal-code" id="modalCode">------</div>
+            <button class="btn-copy-modal" onclick="copyCodeFromModal()">📋 Copy Code</button>
+            <button class="btn btn-primary modal-cta" onclick="closeModalAndEnter()">
+                🚀 Start Planning
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════
+         WORKSPACE PAGE
+    ═══════════════════════════════════════════════════ -->
+    <div id="workspace-page" style="display:none;">
+
+        <!-- ── Group Header Bar ── -->
+        <div class="group-topbar">
+            <button class="btn-back" onclick="goBackToLanding()" title="Back to home">← Back</button>
+            <div class="group-topbar-center">
+                <div class="gtb-trip-name" id="groupDisplayName">Trip Name</div>
+                <div class="gtb-code-row">
+                    <span class="gtb-code-label">Group Code:</span>
+                    <span class="group-code-badge" id="groupDisplayCode">------</span>
+                    <button class="btn-copy-code" onclick="copyGroupCode()">📋 Copy</button>
+                </div>
+            </div>
+            <div class="gtb-spacer"></div>
+        </div>
+
+        <!-- ── Mobile Tab Nav ── -->
+        <nav class="mobile-tab-nav" role="tablist" aria-label="Sections">
+            <button class="mobile-tab active" role="tab" aria-selected="true"
+                    onclick="switchTab('people')" data-target="people-tab">
+                <span class="mtab-icon">👥</span>
+                <span class="mtab-label">People</span>
+            </button>
+            <button class="mobile-tab" role="tab" aria-selected="false"
+                    onclick="switchTab('expenses')" data-target="expenses-tab">
+                <span class="mtab-icon">💳</span>
+                <span class="mtab-label">Expenses</span>
+            </button>
+            <button class="mobile-tab" role="tab" aria-selected="false"
+                    onclick="switchTab('settlement')" data-target="moneySettlementPanel">
+                <span class="mtab-icon">💰</span>
+                <span class="mtab-label">Settlement</span>
+            </button>
+        </nav>
+
+        <!-- ── 3-Panel Workspace ── -->
+        <div class="panels-wrapper">
+
+            <!-- ══ Panel 1: People ══ -->
+            <section class="panel panel-people" id="panel-people">
+                <div class="panel-header-bar">
+                    <span class="ph-icon">👥</span>
+                    <span class="ph-title">People</span>
+                </div>
+                <div class="panel-body" id="people-tab" role="tabpanel">
+                    <form id="personForm" autocomplete="off">
+                        <div class="form-group">
+                            <label for="personNameOnly">Name</label>
+                            <input type="text" id="personNameOnly" placeholder="Enter name" required autocomplete="off">
+                        </div>
+                        <button type="submit" class="btn btn-add-person">➕ Add Person</button>
+                    </form>
+                    <div class="section-divider"></div>
+                    <h3 class="list-heading">📋 All People</h3>
+                    <div id="peopleContainer">
+                        <div class="no-data">No people added yet 🤷</div>
+                    </div>
+                    <button class="btn btn-clear" onclick="clearAllData()">🗑️ Clear All</button>
+                </div>
+            </section>
+
+            <!-- ══ Panel 2: Expenses ══ -->
+            <section class="panel panel-expenses" id="panel-expenses">
+                <div class="panel-header-bar">
+                    <span class="ph-icon">💳</span>
+                    <span class="ph-title">Expenses</span>
+                </div>
+                <div class="panel-body" id="expenses-tab" role="tabpanel">
+                    <form id="expenseForm" autocomplete="off">
+                        <div class="form-group">
+                            <label for="personSelect">Who paid</label>
                             <select id="personSelect" required>
-                                <option value="">Select person</option>
+                                <option value="">Select person…</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="expenseAmount">How much money spent:</label>
-                            <input type="number" id="expenseAmount" placeholder="Enter amount in rupees" step="1" min="0" required>
+                            <label for="expenseAmount">Amount (₹)</label>
+                            <input type="number" id="expenseAmount" placeholder="Enter amount" step="1" min="0" required>
                         </div>
-                        
-                        <!-- Splitting Mode Selection -->
+
+                        <!-- Splitting Mode -->
                         <div class="splitting-mode">
-                            <div style="font-weight: 600; margin-bottom: 10px;">How to split this expense:</div>
+                            <div class="split-mode-title">⚡ How to split</div>
                             <label>
                                 <input type="radio" name="splittingMode" value="equal" checked onchange="toggleSplittingMode()">
-                                Split equally among selected people
+                                <span>Split equally</span>
                             </label>
                             <label>
                                 <input type="radio" name="splittingMode" value="custom" onchange="toggleSplittingMode()">
-                                Custom amounts for each person
+                                <span>Custom amounts</span>
                             </label>
                         </div>
-                        
-                        <!-- Equal Split Section -->
+
+                        <!-- Equal Split -->
                         <div id="equalSplitSection">
                             <div class="form-group">
-                                <label>Who shared this expense? (Select at least one):</label>
+                                <label>Who shared this expense</label>
                                 <div class="checkbox-controls">
-                                    <button type="button" class="btn btn-select-all" id="selectAllBtn" onclick="toggleSelectAll()">
-                                        Select All
-                                    </button>
-                                    <span id="selectedCount" style="color: #666; font-size: 0.9rem;">0 selected</span>
+                                    <button type="button" class="btn btn-select-all" id="selectAllBtn" onclick="toggleSelectAll()">✓ Select All</button>
+                                    <span id="selectedCount">0 selected</span>
                                 </div>
                                 <div id="sharedWithCheckboxes" class="multi-checkbox-group"></div>
                             </div>
                         </div>
-                        
-                        <!-- Custom Amounts Section -->
+
+                        <!-- Custom Amounts -->
                         <div id="customAmountsSection" class="custom-amounts-section">
-                            <div style="font-weight: 600; margin-bottom: 10px;">Enter custom amount for each person:</div>
+                            <div class="custom-header">📝 Custom amount per person</div>
                             <div id="customAmountInputs"></div>
                             <div id="totalCheck" class="total-check">Enter amounts to see total</div>
                         </div>
-                        
+
                         <div class="form-group">
-                            <label for="expenseDescription">What was bought (optional):</label>
-                            <input type="text" id="expenseDescription" placeholder="Like: food, petrol, hotel">
+                            <label for="expenseDescription">Description <span class="optional">(optional)</span></label>
+                            <input type="text" id="expenseDescription" placeholder="e.g. food, petrol, hotel">
                         </div>
-                        <button type="submit" class="btn btn-primary">Add Expense</button>
+                        <button type="submit" class="btn btn-primary">➕ Add Expense</button>
                     </form>
-                    <h3 style="margin-top: 30px; margin-bottom: 15px; color: #333;"> All Expenses</h3>
+                    <div class="section-divider"></div>
+                    <h3 class="list-heading">💸 All Expenses</h3>
                     <div id="expensesContainer">
-                        <div class="no-data">No expenses added yet</div>
+                        <div class="no-data">No expenses added yet 📭</div>
                     </div>
                 </div>
-            </div>
-            <div class="right-panel" id="moneySettlementPanel" style="display: none;">
-                <h2 class="panel-title"> Money Settlement</h2>
-                <div id="totalExpenses" class="total-expenses" style="display: none;">
-                    <div>Total Trip Expenses</div>
-                    <div class="total-amount">₹0</div>
+            </section>
+
+            <!-- ══ Panel 3: Settlement ══ -->
+            <section class="panel panel-settlement" id="moneySettlementPanel">
+                <div class="panel-header-bar settlement-bar">
+                    <span class="ph-icon">💰</span>
+                    <span class="ph-title">Settlement</span>
                 </div>
-                <button id="calculateBtn" class="btn btn-secondary" onclick="calculateSettlements()">
-                    Calculate - Who Pays How Much To Whom
-                </button>
-                <button id="exportBtn" class="btn btn-export" onclick="exportToPDF()" style="display: none;">
-                     Export to PDF
-                </button>
-                <div id="settlementResults">
-                    <div class="no-data">First add people and expenses, then calculate</div>
+                <div class="panel-body" aria-live="polite">
+                    <div id="totalExpenses" class="total-expenses" style="display:none;">
+                        <div class="total-label">Total Trip Expenses</div>
+                        <div class="total-amount">₹0</div>
+                    </div>
+                    <button id="calculateBtn" class="btn btn-secondary" onclick="calculateSettlements()">
+                        🧮 Calculate Settlements
+                    </button>
+                    <button id="exportBtn" class="btn btn-export" onclick="exportToPDF()" style="display:none;">
+                        📄 Export to PDF
+                    </button>
+                    <div id="settlementResults">
+                        <div class="no-data">Add people &amp; expenses,<br>then click Calculate</div>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
-    <script src="script.js"></script>
+            </section>
+
+        </div><!-- /panels-wrapper -->
+    </div><!-- /workspace-page -->
+
+</div><!-- /app-shell -->
+
+<!-- Toast container -->
+<div id="toastContainer"></div>
+
+<!-- Firebase Helpers (load before main script) -->
+<script src="firebase-helpers.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
