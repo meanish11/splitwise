@@ -18,6 +18,20 @@ let groupUnsubscribe  = null;   // Firestore onSnapshot unsubscribe fn
 //  HELPERS
 // ============================================================
 
+/** FAQ accordion toggle */
+function toggleFaq(btn) {
+    const answer = btn.nextElementSibling;
+    const isOpen = answer.classList.contains('open');
+    // Close all
+    document.querySelectorAll('.faq-a.open').forEach(a => a.classList.remove('open'));
+    document.querySelectorAll('.faq-q.open').forEach(q => q.classList.remove('open'));
+    // Open clicked one if it was closed
+    if (!isOpen) {
+        answer.classList.add('open');
+        btn.classList.add('open');
+    }
+}
+
 /** Generate a random 6-char alphanumeric code (unambiguous chars) */
 function generateGroupCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -79,6 +93,35 @@ function setLoading(on, msg = 'Loading') {
 //  GROUP MANAGEMENT  (Firestore)
 // ============================================================
 
+/**
+ * Check if a group has passed its 10-day expiry.
+ * If expired, deletes the Firestore document and its sub-collections
+ * and returns true. Otherwise returns false.
+ */
+async function checkAndDeleteExpiredGroup(code, data) {
+    if (!data) return false;
+    let expiry = null;
+
+    // Prefer the explicit deleteAfter field; fall back to createdAt + 10 days
+    if (data.deleteAfter) {
+        expiry = data.deleteAfter.toDate ? data.deleteAfter.toDate() : new Date(data.deleteAfter);
+    } else if (data.createdAt) {
+        const created = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+        expiry = new Date(created.getTime() + 10 * 24 * 60 * 60 * 1000);
+    }
+
+    if (!expiry || Date.now() < expiry.getTime()) return false;
+
+    // Group is expired — delete it
+    try {
+        await db.collection('groups').doc(code).delete();
+        console.log(`[TripWise] Group ${code} auto-deleted after 10-day expiry.`);
+    } catch (err) {
+        console.warn('[TripWise] Could not auto-delete expired group:', err);
+    }
+    return true;
+}
+
 /** Create a new group document in Firestore, show code modal */
 async function createGroup(tripName) {
     setLoading(true, 'Creating your trip');
@@ -94,12 +137,16 @@ async function createGroup(tripName) {
             if (!snap.exists) break;
         } while (attempts < 20);
 
+        // deleteAfter = 10 days from now (stored as a Firestore Timestamp for TTL/client checks)
+        const deleteAfterDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+
         await groupsRef.doc(code).set({
-            name:      tripName,
-            code:      code,
-            people:    [],
-            expenses:  [],
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            name:        tripName,
+            code:        code,
+            people:      [],
+            expenses:    [],
+            createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
+            deleteAfter: firebase.firestore.Timestamp.fromDate(deleteAfterDate)
         });
 
         setLoading(false);
@@ -146,6 +193,16 @@ async function joinGroup(code) {
             errEl.textContent = ` No trip found with code "${code}". Please check and try again.`;
             return;
         }
+
+        // Auto-delete if the group has passed its 10-day expiry
+        const expired = await checkAndDeleteExpiredGroup(code, snap.data());
+        if (expired) {
+            const errEl = document.getElementById('joinError');
+            errEl.style.display = 'block';
+            errEl.textContent = `⏰ This trip has been automatically deleted after 10 days. Please export a PDF next time before the deadline.`;
+            return;
+        }
+
         openWorkspace(code);
     } catch (err) {
         setLoading(false);
@@ -187,13 +244,22 @@ function openWorkspace(code) {
 
     //  Real-time listener 
     groupUnsubscribe = db.collection('groups').doc(code)
-        .onSnapshot(snap => {
+        .onSnapshot(async snap => {
             if (!snap.exists) {
                 showToast(' This group was deleted.', 'error');
                 goBackToLanding();
                 return;
             }
             const data = snap.data();
+
+            // Auto-delete check: if the group has passed its 10-day expiry,
+            // delete it from Firestore; the next snapshot will show !snap.exists
+            // and redirect everyone back to the landing page.
+            const expired = await checkAndDeleteExpiredGroup(code, data);
+            if (expired) {
+                showToast('⏰ This trip expired and has been automatically deleted after 10 days.', 'error');
+                return; // goBackToLanding() will fire on the deletion snapshot
+            }
 
             // Update runtime state
             people   = data.people   || [];
