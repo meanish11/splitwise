@@ -1978,9 +1978,22 @@ h3 {
    QUICK START SECTION
    ============================================= */
 .quickstart-section {
-  padding: 36px 32px 36px;
+  padding: 20px 32px 22px;
   background: #F8FAFC;
   border-top: 1px solid #E2E8F0;
+}
+
+.quickstart-section .section-header {
+  margin-bottom: 14px;
+}
+
+.quickstart-section .section-title {
+  font-size: 1.1rem;
+  margin-bottom: 2px;
+}
+
+.quickstart-section .section-sub {
+  font-size: .78rem;
 }
 
 .qs-steps {
@@ -1998,14 +2011,14 @@ h3 {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 8px;
+  gap: 4px;
   background: #fff;
   border: 1.5px solid #E8ECFF;
-  border-radius: var(--r-lg);
-  padding: 18px 16px;
+  border-radius: var(--r);
+  padding: 12px 14px;
   flex: 1;
-  min-width: 200px;
-  max-width: 240px;
+  min-width: 170px;
+  max-width: 220px;
   transition: var(--t);
 }
 
@@ -2017,31 +2030,31 @@ h3 {
 }
 
 .qs-num {
-  width: 32px; height: 32px;
+  width: 26px; height: 26px;
   background: linear-gradient(135deg, #6366F1, #8B5CF6);
   color: #fff;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: .875rem; font-weight: 800;
+  font-size: .75rem; font-weight: 800;
   flex-shrink: 0;
 }
 
 .qs-icon {
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   line-height: 1;
 }
 
 .qs-title {
-  font-size: .9rem;
+  font-size: .82rem;
   font-weight: 700;
   color: #0F172A;
   letter-spacing: -.2px;
 }
 
 .qs-desc {
-  font-size: .775rem;
+  font-size: .72rem;
   color: #64748B;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .qs-desc strong {
@@ -2050,11 +2063,11 @@ h3 {
 }
 
 .qs-arrow {
-  font-size: 1.5rem;
+  font-size: 1rem;
   color: #94A3B8;
   font-weight: 700;
   align-self: center;
-  padding: 0 8px;
+  padding: 0 4px;
   flex-shrink: 0;
 }
 
@@ -2502,7 +2515,7 @@ h3 {
   .hiw-arrow { display: none; }
   .hiw-step  { max-width: 100%; min-width: 100%; padding: 14px 14px; }
 
-  .quickstart-section { padding: 28px 18px 32px; }
+  .quickstart-section { padding: 16px 18px 18px; }
   .qs-steps { gap: 8px; }
   .qs-arrow { display: none; }
   .qs-step  { max-width: 100%; min-width: 100%; padding: 14px 14px; }
@@ -2529,7 +2542,7 @@ h3 {
   .features-section { padding: 24px 16px 20px; }
   .features-grid { grid-template-columns: 1fr; }
   .how-it-works { padding: 24px 18px 28px; }
-  .quickstart-section { padding: 24px 18px 28px; }
+  .quickstart-section { padding: 14px 18px 16px; }
   .faq-section { padding: 24px 18px 28px; }
   .form-card { padding: 36px 24px; border-radius: var(--r-lg); }
   .modal-card { padding: 36px 24px; }
