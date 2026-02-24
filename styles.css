@@ -1532,6 +1532,51 @@ h3 {
 /* =============================================
    LANDING TAB CONTENT SWITCHER
    ============================================= */
+.landing-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: #F1F5F9;
+  border-top: 1px solid #E2E8F0;
+  font-size: .8rem;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.footer-linkedin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #0A66C2;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: .8rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #EEF2FF;
+  border: 1px solid #C7D2FE;
+  transition: var(--t);
+}
+
+.footer-linkedin:hover {
+  background: #0A66C2;
+  border-color: #0A66C2;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(10,102,194,.25);
+}
+
+.footer-linkedin .linkedin-icon {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+  display: block;
+}
+
+/* =============================================
+   LANDING TAB CONTENT SWITCHER
+   ============================================= */
 .landing-content {
   display: none;
   animation: fadeIn .25s ease;

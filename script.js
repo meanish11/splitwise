@@ -754,77 +754,85 @@ function displaySettlements(settlements, spent, shouldPay, totalAmt) {
 
     // ── Summary bar ──────────────────────────────────────────
     html += `
-        <div style="background:linear-gradient(135deg,rgba(99,102,241,.18),rgba(139,92,246,.12));
-                    border:1px solid rgba(139,92,246,.3);border-radius:10px;
-                    padding:12px 16px;margin-bottom:18px;font-size:.85rem;
-                    color:rgba(199,210,254,.8);line-height:1.8;">
-            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-                <span>&#x1F4B0; Total spent: <strong style="color:#E0E7FF;">&#x20B9;${totalAmt2}</strong></span>
-                <span>&#x1F465; ${people.length} people</span>
-                <span>&#x2696;&#xFE0F; Equal share per person: <strong style="color:#E0E7FF;">&#x20B9;${perPerson}</strong></span>
+        <div style="background:#EEF2FF;border:1.5px solid #C7D2FE;border-radius:8px;
+                    padding:7px 12px;margin-bottom:10px;font-size:.78rem;color:#334155;">
+            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;">
+                <span>💰 Total: <strong style="color:#1E1B4B;">₹${totalAmt2}</strong></span>
+                <span>👥 ${people.length} people</span>
+                <span>⚖️ Share: <strong style="color:#1E1B4B;">₹${perPerson}</strong>/person</span>
             </div>
         </div>`;
 
     // ── Who pays whom ─────────────────────────────────────────
     if (settlements.length === 0) {
         html += `
-            <div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);
-                        border-radius:10px;padding:16px;text-align:center;margin-bottom:18px;">
-                <div style="font-size:1.1rem;font-weight:700;color:#34D399;margin-bottom:4px;">
-                    &#x1F389; Everyone is settled up!
+            <div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:8px;
+                        padding:10px;text-align:center;margin-bottom:10px;">
+                <div style="font-size:.95rem;font-weight:700;color:#166534;">
+                    🎉 Everyone is settled up!
                 </div>
-                <div style="font-size:.85rem;color:rgba(199,210,254,.6);">
-                    All ${people.length} people have paid their exact fair share. No transfers needed.
+                <div style="font-size:.75rem;color:#16A34A;margin-top:2px;">
+                    All ${people.length} people paid their exact fair share.
                 </div>
             </div>`;
     } else {
-        html += `<div style="font-size:.72rem;color:rgba(199,210,254,.45);font-weight:700;
-                             text-transform:uppercase;letter-spacing:.9px;margin-bottom:10px;">
-                    &#x1F4B8; Who Pays Whom (${settlements.length} transfer${settlements.length > 1 ? 's' : ''})
+        html += `<div style="font-size:.65rem;color:#6366F1;font-weight:800;background:#EEF2FF;
+                             display:inline-block;padding:2px 8px;border-radius:20px;
+                             text-transform:uppercase;letter-spacing:.9px;margin-bottom:7px;">
+                    💸 Who Pays Whom — ${settlements.length} transfer${settlements.length > 1 ? 's' : ''}
                  </div>`;
+
         settlements.forEach((s, i) => {
-            const fromPaid   = Math.round(spent[s.from] || 0);
-            const fromShare  = Math.round(shouldPay[s.from] || 0);
-            const toPaid     = Math.round(spent[s.to] || 0);
-            const toShare    = Math.round(shouldPay[s.to] || 0);
+            const fromPaid  = Math.round(spent[s.from]    || 0);
+            const fromShare = Math.round(shouldPay[s.from] || 0);
+            const toPaid    = Math.round(spent[s.to]      || 0);
+            const toShare   = Math.round(shouldPay[s.to]  || 0);
+            const owes      = fromShare - fromPaid > 0 ? fromShare - fromPaid : 0;
+            const recovers  = toPaid - toShare > 0 ? toPaid - toShare : 0;
+
             html += `
-                <div style="background:rgba(255,255,255,.04);border:1px solid rgba(248,113,113,.25);
-                            border-left:4px solid #F87171;border-radius:10px;
-                            padding:14px 16px;margin-bottom:12px;">
-                    <div style="font-size:.7rem;color:rgba(199,210,254,.4);font-weight:700;
-                                text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px;">
+                <div style="background:#fff;border:1.5px solid #FECACA;border-left:4px solid #EF4444;
+                            border-radius:8px;padding:9px 11px;margin-bottom:8px;
+                            box-shadow:0 1px 6px rgba(239,68,68,.07);">
+                    <div style="font-size:.62rem;color:#94A3B8;font-weight:700;text-transform:uppercase;
+                                letter-spacing:.8px;margin-bottom:5px;">
                         Transfer ${i + 1} of ${settlements.length}
                     </div>
-                    <div style="font-size:1rem;color:#E0E7FF;font-weight:600;margin-bottom:6px;">
-                        <span style="color:#FCA5A5;">${s.from}</span>
-                        <span style="color:rgba(199,210,254,.4);"> must pay </span>
-                        <span style="color:#86EFAC;">${s.to}</span>
+
+                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px;">
+                        <span style="background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;
+                                     border-radius:6px;padding:2px 8px;font-weight:800;font-size:.82rem;">
+                            ${s.from}
+                        </span>
+                        <span style="color:#64748B;font-size:.75rem;font-weight:600;">must pay</span>
+                        <span style="background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0;
+                                     border-radius:6px;padding:2px 8px;font-weight:800;font-size:.82rem;">
+                            ${s.to}
+                        </span>
+                        <span style="font-size:1.15rem;font-weight:900;color:#1E1B4B;letter-spacing:-.5px;margin-left:4px;">
+                            ₹${s.amount}
+                        </span>
                     </div>
-                    <div style="font-size:1.6rem;font-weight:800;color:#60A5FA;margin-bottom:10px;">
-                        &#x20B9;${s.amount}
-                    </div>
-                    <div style="border-top:1px solid rgba(255,255,255,.07);padding-top:10px;
-                                display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                        <div style="background:rgba(248,113,113,.08);border-radius:8px;padding:8px 10px;">
-                            <div style="font-size:.7rem;color:#FCA5A5;font-weight:700;
-                                        text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">
-                                ${s.from} (payer)
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:7px;padding:6px 8px;">
+                            <div style="font-size:.62rem;color:#DC2626;font-weight:800;text-transform:uppercase;
+                                        letter-spacing:.5px;margin-bottom:3px;">
+                                🔴 ${s.from}
                             </div>
-                            <div style="font-size:.8rem;color:rgba(199,210,254,.7);line-height:1.7;">
-                                Spent: <strong style="color:#E0E7FF;">&#x20B9;${fromPaid}</strong><br>
-                                Fair share: <strong style="color:#E0E7FF;">&#x20B9;${fromShare}</strong><br>
-                                <span style="color:#FCA5A5;">Owes total: &#x20B9;${fromShare - fromPaid > 0 ? fromShare - fromPaid : 0}</span>
+                            <div style="font-size:.75rem;color:#475569;line-height:1.6;">
+                                Paid ₹${fromPaid} · Share ₹${fromShare}<br>
+                                <span style="color:#DC2626;font-weight:700;">Owes: ₹${owes}</span>
                             </div>
                         </div>
-                        <div style="background:rgba(134,239,172,.08);border-radius:8px;padding:8px 10px;">
-                            <div style="font-size:.7rem;color:#86EFAC;font-weight:700;
-                                        text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">
-                                ${s.to} (receiver)
+                        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;padding:6px 8px;">
+                            <div style="font-size:.62rem;color:#16A34A;font-weight:800;text-transform:uppercase;
+                                        letter-spacing:.5px;margin-bottom:3px;">
+                                🟢 ${s.to}
                             </div>
-                            <div style="font-size:.8rem;color:rgba(199,210,254,.7);line-height:1.7;">
-                                Spent: <strong style="color:#E0E7FF;">&#x20B9;${toPaid}</strong><br>
-                                Fair share: <strong style="color:#E0E7FF;">&#x20B9;${toShare}</strong><br>
-                                <span style="color:#86EFAC;">Recovers: &#x20B9;${toPaid - toShare > 0 ? toPaid - toShare : 0}</span>
+                            <div style="font-size:.75rem;color:#475569;line-height:1.6;">
+                                Paid ₹${toPaid} · Share ₹${toShare}<br>
+                                <span style="color:#16A34A;font-weight:700;">Recovers: ₹${recovers}</span>
                             </div>
                         </div>
                     </div>
@@ -833,9 +841,10 @@ function displaySettlements(settlements, spent, shouldPay, totalAmt) {
     }
 
     // ── Individual breakdown ──────────────────────────────────
-    html += `<div style="font-size:.72rem;color:rgba(199,210,254,.45);font-weight:700;
-                         text-transform:uppercase;letter-spacing:.9px;margin:20px 0 10px;">
-                &#x1F4CA; Individual Breakdown
+    html += `<div style="font-size:.65rem;color:#6366F1;font-weight:800;background:#EEF2FF;
+                         display:inline-block;padding:2px 8px;border-radius:20px;
+                         text-transform:uppercase;letter-spacing:.9px;margin:5px 0 7px;">
+                📊 Individual Breakdown
              </div>`;
 
     people.forEach(p => {
@@ -844,59 +853,62 @@ function displaySettlements(settlements, spent, shouldPay, totalAmt) {
         const bal = s - sh;
         const isCreditor = bal > 0, isDebtor = bal < 0;
 
-        // Who does this person receive from / pay to?
-        const receives = settlements.filter(t => t.to   === p.name).map(t => `<strong style="color:#FCA5A5;">${t.from}</strong> pays &#x20B9;${t.amount}`);
-        const pays     = settlements.filter(t => t.from === p.name).map(t => `&#x20B9;${t.amount} to <strong style="color:#86EFAC;">${t.to}</strong>`);
+        const receives = settlements.filter(t => t.to   === p.name).map(t => `<strong style="color:#DC2626;">${t.from}</strong> → ₹${t.amount}`);
+        const pays     = settlements.filter(t => t.from === p.name).map(t => `₹${t.amount} → <strong style="color:#16A34A;">${t.to}</strong>`);
 
-        const borderColor = isCreditor ? '#34D399' : isDebtor ? '#F87171' : '#818CF8';
+        const borderColor = isCreditor ? '#16A34A' : isDebtor ? '#DC2626' : '#6366F1';
+        const rowBg       = isCreditor ? '#F0FDF4' : isDebtor ? '#FEF2F2' : '#F5F3FF';
+        const rowBorder   = isCreditor ? '#BBF7D0' : isDebtor ? '#FECACA' : '#DDD6FE';
+
         const badge = isCreditor
-            ? `<span style="background:rgba(16,185,129,.15);color:#34D399;border:1px solid rgba(16,185,129,.35);
-                            border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700;">
-                    &#x2B06;&#xFE0F; Gets back &#x20B9;${bal}
+            ? `<span style="background:#DCFCE7;color:#16A34A;border:1px solid #BBF7D0;
+                            border-radius:20px;padding:2px 8px;font-size:.7rem;font-weight:800;">
+                    ✅ +₹${bal}
                </span>`
             : isDebtor
-            ? `<span style="background:rgba(248,113,113,.15);color:#F87171;border:1px solid rgba(248,113,113,.35);
-                            border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700;">
-                    &#x2B07;&#xFE0F; Owes &#x20B9;${Math.abs(bal)}
+            ? `<span style="background:#FEE2E2;color:#DC2626;border:1px solid #FECACA;
+                            border-radius:20px;padding:2px 8px;font-size:.7rem;font-weight:800;">
+                    🔴 -₹${Math.abs(bal)}
                </span>`
-            : `<span style="background:rgba(129,140,248,.15);color:#818CF8;border:1px solid rgba(129,140,248,.35);
-                            border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700;">
-                    &#x2714;&#xFE0F; Settled
+            : `<span style="background:#EDE9FE;color:#6366F1;border:1px solid #C4B5FD;
+                            border-radius:20px;padding:2px 8px;font-size:.7rem;font-weight:800;">
+                    ✨ Settled
                </span>`;
 
         html += `
-            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
-                        border-left:4px solid ${borderColor};border-radius:10px;
-                        padding:14px 16px;margin-bottom:10px;">
+            <div style="background:${rowBg};border:1.5px solid ${rowBorder};border-left:4px solid ${borderColor};
+                        border-radius:8px;padding:8px 10px;margin-bottom:6px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;
-                            flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-                    <div style="font-size:1rem;font-weight:700;color:#E0E7FF;">${p.name}</div>
+                            flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+                    <div style="font-size:.88rem;font-weight:800;color:#0F172A;">${p.name}</div>
                     ${badge}
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:${(pays.length || receives.length) ? '10px' : '0'};">
-                    <div style="background:rgba(99,102,241,.1);border-radius:7px;padding:8px;text-align:center;">
-                        <div style="font-size:.68rem;color:rgba(199,210,254,.45);text-transform:uppercase;
-                                    letter-spacing:.5px;margin-bottom:3px;">Total Paid</div>
-                        <div style="font-size:1rem;font-weight:700;color:#E0E7FF;">&#x20B9;${s}</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:${(pays.length || receives.length) ? '6px' : '0'};">
+                    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 5px;text-align:center;">
+                        <div style="font-size:.6rem;color:#94A3B8;text-transform:uppercase;
+                                    letter-spacing:.4px;margin-bottom:1px;font-weight:700;">Paid</div>
+                        <div style="font-size:.88rem;font-weight:800;color:#0F172A;">₹${s}</div>
                     </div>
-                    <div style="background:rgba(99,102,241,.1);border-radius:7px;padding:8px;text-align:center;">
-                        <div style="font-size:.68rem;color:rgba(199,210,254,.45);text-transform:uppercase;
-                                    letter-spacing:.5px;margin-bottom:3px;">Fair Share</div>
-                        <div style="font-size:1rem;font-weight:700;color:#E0E7FF;">&#x20B9;${sh}</div>
+                    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 5px;text-align:center;">
+                        <div style="font-size:.6rem;color:#94A3B8;text-transform:uppercase;
+                                    letter-spacing:.4px;margin-bottom:1px;font-weight:700;">Share</div>
+                        <div style="font-size:.88rem;font-weight:800;color:#0F172A;">₹${sh}</div>
                     </div>
-                    <div style="background:rgba(99,102,241,.1);border-radius:7px;padding:8px;text-align:center;">
-                        <div style="font-size:.68rem;color:rgba(199,210,254,.45);text-transform:uppercase;
-                                    letter-spacing:.5px;margin-bottom:3px;">Balance</div>
-                        <div style="font-size:1rem;font-weight:700;color:${borderColor};">
-                            ${bal > 0 ? '+' : ''}&#x20B9;${bal}
+                    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 5px;text-align:center;">
+                        <div style="font-size:.6rem;color:#94A3B8;text-transform:uppercase;
+                                    letter-spacing:.4px;margin-bottom:1px;font-weight:700;">Balance</div>
+                        <div style="font-size:.88rem;font-weight:800;color:${borderColor};">
+                            ${bal > 0 ? '+' : ''}₹${bal}
                         </div>
                     </div>
                 </div>
-                ${pays.length ? `<div style="font-size:.8rem;color:rgba(199,210,254,.6);margin-top:6px;">
-                    &#x27A1;&#xFE0F; <strong style="color:#FCA5A5;">${p.name}</strong> needs to send: ${pays.join(', ')}
+                ${pays.length ? `<div style="font-size:.72rem;color:#475569;margin-top:3px;padding:3px 8px;
+                                             background:#FEF2F2;border-radius:5px;">
+                    ➡️ ${p.name} sends: ${pays.join(' &amp; ')}
                 </div>` : ''}
-                ${receives.length ? `<div style="font-size:.8rem;color:rgba(199,210,254,.6);margin-top:4px;">
-                    &#x2B05;&#xFE0F; <strong style="color:#86EFAC;">${p.name}</strong> will receive from: ${receives.join(', ')}
+                ${receives.length ? `<div style="font-size:.72rem;color:#475569;margin-top:3px;padding:3px 8px;
+                                                  background:#F0FDF4;border-radius:5px;">
+                    ⬅️ ${p.name} receives: ${receives.join(' &amp; ')}
                 </div>` : ''}
             </div>`;
     });
@@ -908,7 +920,7 @@ function displaySettlements(settlements, spent, shouldPay, totalAmt) {
 
 
 // ============================================================
-//  PDF EXPORT  (unchanged logic, updated colors)
+//  PDF EXPORT
 // ============================================================
 
 function exportToPDF() {
