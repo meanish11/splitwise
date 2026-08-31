@@ -197,6 +197,18 @@ a:hover { text-decoration: underline; }
   gap: var(--sp-3);
   text-decoration: none;
   flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: transform var(--t), opacity var(--t);
+}
+
+.tnav-brand:hover {
+  transform: translateY(-0.5px);
+  opacity: 0.92;
+}
+
+.tnav-brand:active {
+  transform: scale(0.98);
 }
 
 .tnav-logo {

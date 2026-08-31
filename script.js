@@ -241,6 +241,16 @@ async function joinGroup(code) {
     }
 }
 
+/** Unified go to home handler (works from both landing tabs and active workspace) */
+function goToHome() {
+    if (document.getElementById('workspace-page') && document.getElementById('workspace-page').style.display === 'flex') {
+        goBackToLanding();
+    } else {
+        showLandingTab('home');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 /** Show the landing page with a specific tab highlighted */
 function showLandingTab(tab) {
     document.querySelectorAll('.landing-content').forEach(el => el.classList.remove('active'));
