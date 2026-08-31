@@ -1,5 +1,5 @@
 // ============================================================
-//  TripWise  Main Script  (Firebase Firestore + Real-time sync)
+//  Splitwise — Main Script (Firebase Firestore + Real-time sync)
 // ============================================================
 //  Firestore structure:
 //    Collection: "groups"
@@ -24,12 +24,40 @@ function toggleFaq(btn) {
     const isOpen = answer.classList.contains('open');
     // Close all
     document.querySelectorAll('.faq-a.open').forEach(a => a.classList.remove('open'));
-    document.querySelectorAll('.faq-q.open').forEach(q => q.classList.remove('open'));
+    document.querySelectorAll('.faq-q.open').forEach(q => { q.classList.remove('open'); q.setAttribute('aria-expanded', 'false'); });
     // Open clicked one if it was closed
     if (!isOpen) {
         answer.classList.add('open');
         btn.classList.add('open');
+        btn.setAttribute('aria-expanded', 'true');
     }
+}
+
+/** Dark mode toggle */
+function toggleDarkMode() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('tripwise-theme', isDark ? 'light' : 'dark');
+    updateThemeIcon();
+}
+
+function updateThemeIcon() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const sunIcon = document.querySelector('.theme-icon-sun');
+    const moonIcon = document.querySelector('.theme-icon-moon');
+    if (sunIcon && moonIcon) {
+        sunIcon.style.display = isDark ? 'none' : 'block';
+        moonIcon.style.display = isDark ? 'block' : 'none';
+    }
+}
+
+function initTheme() {
+    const saved = localStorage.getItem('tripwise-theme');
+    if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    updateThemeIcon();
 }
 
 /** Generate a random 6-char alphanumeric code (unambiguous chars) */
@@ -46,7 +74,9 @@ function showToast(message, type = '') {
     if (!container) return;
     const toast = document.createElement('div');
     toast.className = 'toast-item' + (type ? ' ' + type : '');
-    toast.textContent = message;
+    // Clean up emoji prefixes from messages
+    const cleanMsg = message.replace(/^[\s🚀🔑📋🎉⚠️❌✅💰👥⚖️💸➡️⬅️🔴🟢✨🧮📄⏰🤔📢📝🏕️✅🗑️]/u, '').trim();
+    toast.textContent = cleanMsg || message;
     container.appendChild(toast);
     setTimeout(() => {
         toast.style.opacity = '0';
@@ -299,7 +329,34 @@ function goBackToLanding() {
 /** Copy the current group code to clipboard */
 function copyGroupCode() {
     const code = document.getElementById('groupDisplayCode').textContent;
-    navigator.clipboard.writeText(code).then(() => showToast('Group code copied! Share it with your friends ', 'success'));
+    if (!code || code === '------') return;
+    navigator.clipboard.writeText(code).then(() => showToast('Trip Code copied to clipboard!', 'success'));
+}
+
+/** Copy full invite message with link */
+function copyInviteLink() {
+    const code = currentGroupCode || document.getElementById('groupDisplayCode').textContent;
+    const name = document.getElementById('groupDisplayName').textContent || 'our group';
+    const link = window.location.origin + window.location.pathname + (code ? '?code=' + code : '');
+    const text = `Join "${name}" on Splitwise! \nGroup Code: *${code}*\nLink: ${link}`;
+    navigator.clipboard.writeText(text).then(() => showToast('Invite link & code copied!', 'success'));
+}
+
+/** Share via WhatsApp from Modal */
+function shareTripWhatsAppFromModal() {
+    const code = document.getElementById('modalCode').textContent;
+    const name = document.getElementById('modalTripName').textContent || 'our group';
+    const link = window.location.origin + window.location.pathname + (code ? '?code=' + code : '');
+    const msg  = encodeURIComponent(`Join our group "${name}" on Splitwise!\nGroup Code: *${code}*\nOpen link: ${link}`);
+    window.open(`https://api.whatsapp.com/send?text=${msg}`, '_blank');
+}
+
+/** Prefill description with quick category chip */
+function setQuickCategory(categoryName) {
+    const descInput = document.getElementById('expenseDescription');
+    const amtInput  = document.getElementById('expenseAmount');
+    if (descInput) descInput.value = categoryName;
+    if (amtInput && !amtInput.value) amtInput.focus();
 }
 
 
@@ -628,100 +685,201 @@ async function clearAllData() {
 //  UI RENDER FUNCTIONS
 // ============================================================
 
+/** Generate a consistent color for a name (avatar backgrounds) */
+function getAvatarColor(name) {
+    const colors = ['#0D6B4F','#1D6FA5','#B45309','#7C3AED','#C2341A','#047857','#9333EA','#1A7D46','#6366F1','#B8860B'];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+}
+
 function displayPeople() {
     const container = document.getElementById('peopleContainer');
+    const badge     = document.getElementById('peopleCountBadge');
+    const mCount    = document.getElementById('mCountPeople');
+
+    if (badge) badge.textContent = `${people.length} member${people.length !== 1 ? 's' : ''}`;
+    if (mCount) mCount.textContent = people.length;
+
     if (people.length === 0) {
-        container.innerHTML = '<div class="no-data">No people added yet </div>'; return;
+        container.innerHTML = `<div class="empty-state">
+            <div class="empty-state-icon"><svg width="24" height="24"><use href="#icon-users"/></svg></div>
+            <div class="empty-state-title">No members added yet</div>
+            <div class="empty-state-desc">Add everyone in your trip group above.</div>
+        </div>`;
+        return;
     }
+
+    // Calculate how much each person paid
+    const spentMap = {};
+    people.forEach(p => spentMap[p.name] = 0);
+    expenses.forEach(ex => {
+        if (spentMap[ex.name] !== undefined) spentMap[ex.name] += ex.amount;
+    });
+
     container.innerHTML = `<div class="people-grid">${
-        people.map(p => `
+        people.map(p => {
+            const initial = p.name.charAt(0).toUpperCase();
+            const color   = getAvatarColor(p.name);
+            const spent   = spentMap[p.name] || 0;
+            return `
             <div class="person-item">
-                <div class="person-details"><div class="person-name">${p.name}</div></div>
-                <button class="btn-delete-person" onclick="removePerson('${p.name}')" title="Delete">&times;</button>
-            </div>`).join('')
+                <div class="person-details">
+                    <div class="person-avatar" style="background:${color}">${initial}</div>
+                    <div class="person-info-block">
+                        <span class="person-name">${p.name}</span>
+                        <span class="person-spent-tag">${spent > 0 ? `Paid ₹${spent.toLocaleString('en-IN')}` : '₹0 spent'}</span>
+                    </div>
+                </div>
+                <button class="btn-delete-person" onclick="removePerson('${p.name.replace(/'/g, "\\'")}')"
+                        title="Remove ${p.name}" aria-label="Remove ${p.name}">&times;</button>
+            </div>`;
+        }).join('')
     }</div>`;
 }
 
 function displayExpenses() {
     const container = document.getElementById('expensesContainer');
+    const badge     = document.getElementById('expensesCountBadge');
+    const mCount    = document.getElementById('mCountExpenses');
+
+    if (badge) badge.textContent = `${expenses.length} logged`;
+    if (mCount) mCount.textContent = expenses.length;
+
     if (expenses.length === 0) {
-        container.innerHTML = '<div class="no-data">No expenses added yet </div>'; return;
+        container.innerHTML = `<div class="empty-state">
+            <div class="empty-state-icon"><svg width="24" height="24"><use href="#icon-receipt"/></svg></div>
+            <div class="empty-state-title">No expenses logged</div>
+            <div class="empty-state-desc">Add a shared bill or cost using the form above.</div>
+        </div>`;
+        return;
     }
+
     container.innerHTML = expenses.map(ex => {
         let info = ex.splittingMode === 'custom' && ex.customAmounts
-            ? 'Custom: ' + Object.entries(ex.customAmounts).map(([p,a]) => `${p}: &#x20B9;${a}`).join(', ')
-            : 'Equal split &mdash; ' + (ex.sharedWith ? ex.sharedWith.join(', ') : '');
+            ? 'Custom: ' + Object.entries(ex.customAmounts).map(([p,a]) => `${p}: ₹${a}`).join(', ')
+            : (ex.sharedWith && ex.sharedWith.length === people.length ? 'Split equally with all' : (ex.sharedWith ? 'Split: ' + ex.sharedWith.join(', ') : ''));
+        const initial = ex.name.charAt(0).toUpperCase();
+        const color = getAvatarColor(ex.name);
         return `
             <div class="expense-item">
                 <div class="expense-details">
-                    <div class="expense-name">${ex.name} paid &#x20B9;${ex.amount}</div>
-                    <div class="expense-amount">For: ${ex.description} &bull; ${info}</div>
+                    <div class="expense-top-row">
+                        <span class="person-avatar" style="background:${color};width:24px;height:24px;font-size:0.65rem;flex-shrink:0">${initial}</span>
+                        <span class="expense-desc-title">${ex.description || 'Expense'}</span>
+                        <span class="expense-amount-badge" style="margin-left:auto;">₹${ex.amount.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div class="expense-meta-info">
+                        <span class="expense-payer-tag">${ex.name} paid</span>
+                        <span>·</span>
+                        <span>${info}</span>
+                    </div>
                 </div>
-                <button class="btn-delete-expense" onclick="removeExpense(${ex.id})" title="Delete">&times;</button>
+                <button class="btn-delete-expense" onclick="removeExpense(${ex.id})" title="Delete" aria-label="Delete expense">&times;</button>
             </div>`;
     }).join('');
 }
 
 function updatePersonDropdown() {
     const sel = document.getElementById('personSelect');
-    sel.innerHTML = '<option value="">Select person</option>';
+    if (!sel) return;
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">Select payer...</option>';
     people.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.name; opt.textContent = p.name;
         sel.appendChild(opt);
     });
+    if (currentVal && people.some(p => p.name === currentVal)) {
+        sel.value = currentVal;
+    }
 }
 
 function updateSharedWithCheckboxes() {
     const container = document.getElementById('sharedWithCheckboxes');
+    if (!container) return;
     container.innerHTML = '';
     people.forEach(p => {
-        const span = document.createElement('span');
-        span.className = 'multi-checkbox-person';
-        span.innerHTML = `<label><input type="checkbox" class="person-checkbox" value="${p.name}" onchange="updateSelectedCount()"> ${p.name}</label>`;
-        container.appendChild(span);
+        const initial = p.name.charAt(0).toUpperCase();
+        const color   = getAvatarColor(p.name);
+        const label   = document.createElement('label');
+        label.className = 'member-chip-label';
+        label.innerHTML = `
+            <input type="checkbox" class="person-checkbox" value="${p.name}" checked onchange="updateSelectedCount()">
+            <span class="member-chip-avatar" style="background:${color}">${initial}</span>
+            <span class="member-chip-name">${p.name}</span>
+            <span class="member-chip-check">✓</span>
+        `;
+        container.appendChild(label);
     });
     updateSelectedCount();
 }
 
 function updateTotalExpenses() {
-    const total  = expenses.reduce((s, ex) => s + (ex.amount || 0), 0);
-    const div    = document.getElementById('totalExpenses');
+    const total   = expenses.reduce((s, ex) => s + (ex.amount || 0), 0);
+    const div     = document.getElementById('totalExpenses');
+    const ticker  = document.getElementById('topbarTotalAmount');
+    const meta    = document.getElementById('totalCardMeta');
+
+    const formatted = '₹' + total.toLocaleString('en-IN');
+    if (ticker) ticker.textContent = formatted;
+
     if (total > 0) {
-        div.style.display = 'block';
-        div.querySelector('.total-amount').textContent = '\u20B9' + total;
+        if (div) {
+            div.style.display = 'block';
+            div.querySelector('.total-amount-display').textContent = formatted;
+            if (meta && people.length > 0) {
+                const perPerson = Math.round(total / people.length);
+                meta.textContent = `₹${perPerson.toLocaleString('en-IN')} per person across ${people.length} member${people.length !== 1 ? 's' : ''}`;
+            }
+        }
     } else {
-        div.style.display = 'none';
+        if (div) div.style.display = 'none';
     }
 }
 
 
 // ============================================================
-//  SETTLEMENT CALCULATION
+//  SETTLEMENT CALCULATION & SHARING
 // ============================================================
 
+let lastSettlementData = null;
+
 function calculateSettlements() {
-    if (people.length  === 0) { document.getElementById('settlementResults').innerHTML = '<div class="no-data">Please add people first</div>'; return; }
-    if (expenses.length === 0) { document.getElementById('settlementResults').innerHTML = '<div class="no-data">Please add some expenses first</div>'; return; }
+    if (people.length === 0) {
+        document.getElementById('settlementResults').innerHTML = '<div class="no-data">Please add trip members first</div>';
+        return;
+    }
+    if (expenses.length === 0) {
+        document.getElementById('settlementResults').innerHTML = '<div class="no-data">Please add some expenses first</div>';
+        return;
+    }
 
     const spent  = {}, shouldPay = {};
     people.forEach(p => { spent[p.name] = 0; shouldPay[p.name] = 0; });
 
     expenses.forEach(ex => {
-        spent[ex.name] += ex.amount;
+        spent[ex.name] = (spent[ex.name] || 0) + ex.amount;
         if (ex.splittingMode === 'custom' && ex.customAmounts) {
-            Object.entries(ex.customAmounts).forEach(([name, amt]) => { shouldPay[name] += amt; });
+            Object.entries(ex.customAmounts).forEach(([name, amt]) => {
+                shouldPay[name] = (shouldPay[name] || 0) + amt;
+            });
         } else {
-            const share = ex.amount / ex.sharedWith.length;
-            ex.sharedWith.forEach(name => { shouldPay[name] += share; });
+            const count = ex.sharedWith && ex.sharedWith.length ? ex.sharedWith.length : 1;
+            const share = ex.amount / count;
+            (ex.sharedWith || []).forEach(name => {
+                shouldPay[name] = (shouldPay[name] || 0) + share;
+            });
         }
     });
 
     const balances = {};
-    people.forEach(p => { balances[p.name] = Math.round(spent[p.name] - shouldPay[p.name]); });
+    people.forEach(p => { balances[p.name] = Math.round((spent[p.name] || 0) - (shouldPay[p.name] || 0)); });
 
     const settlements = generateOptimalSettlements(balances);
     const totalAmt    = expenses.reduce((s, ex) => s + (ex.amount || 0), 0);
+
+    lastSettlementData = { settlements, spent, shouldPay, totalAmt };
     displaySettlements(settlements, spent, shouldPay, totalAmt);
 }
 
@@ -754,32 +912,22 @@ function displaySettlements(settlements, spent, shouldPay, totalAmt) {
 
     // ── Summary bar ──────────────────────────────────────────
     html += `
-        <div style="background:#EEF2FF;border:1.5px solid #C7D2FE;border-radius:8px;
-                    padding:7px 12px;margin-bottom:10px;font-size:.78rem;color:#334155;">
-            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;">
-                <span>💰 Total: <strong style="color:#1E1B4B;">₹${totalAmt2}</strong></span>
-                <span>👥 ${people.length} people</span>
-                <span>⚖️ Share: <strong style="color:#1E1B4B;">₹${perPerson}</strong>/person</span>
-            </div>
+        <div class="settle-summary">
+            <span>Total: <strong>₹${totalAmt2.toLocaleString('en-IN')}</strong></span>
+            <span>${people.length} members</span>
+            <span>Avg: <strong>₹${perPerson.toLocaleString('en-IN')}</strong>/ea</span>
         </div>`;
 
     // ── Who pays whom ─────────────────────────────────────────
     if (settlements.length === 0) {
         html += `
-            <div style="background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:8px;
-                        padding:10px;text-align:center;margin-bottom:10px;">
-                <div style="font-size:.95rem;font-weight:700;color:#166534;">
-                    🎉 Everyone is settled up!
-                </div>
-                <div style="font-size:.75rem;color:#16A34A;margin-top:2px;">
-                    All ${people.length} people paid their exact fair share.
-                </div>
+            <div class="settle-all-clear">
+                <div class="settle-title">🎉 Everyone is settled up!</div>
+                <div class="settle-sub">All ${people.length} members paid their exact fair share.</div>
             </div>`;
     } else {
-        html += `<div style="font-size:.65rem;color:#6366F1;font-weight:800;background:#EEF2FF;
-                             display:inline-block;padding:2px 8px;border-radius:20px;
-                             text-transform:uppercase;letter-spacing:.9px;margin-bottom:7px;">
-                    💸 Who Pays Whom — ${settlements.length} transfer${settlements.length > 1 ? 's' : ''}
+        html += `<div class="settle-badge transfers">
+                    ${settlements.length} Direct Transfer${settlements.length > 1 ? 's' : ''} to Settle
                  </div>`;
 
         settlements.forEach((s, i) => {
@@ -791,49 +939,24 @@ function displaySettlements(settlements, spent, shouldPay, totalAmt) {
             const recovers  = toPaid - toShare > 0 ? toPaid - toShare : 0;
 
             html += `
-                <div style="background:#fff;border:1.5px solid #FECACA;border-left:4px solid #EF4444;
-                            border-radius:8px;padding:9px 11px;margin-bottom:8px;
-                            box-shadow:0 1px 6px rgba(239,68,68,.07);">
-                    <div style="font-size:.62rem;color:#94A3B8;font-weight:700;text-transform:uppercase;
-                                letter-spacing:.8px;margin-bottom:5px;">
-                        Transfer ${i + 1} of ${settlements.length}
+                <div class="settle-transfer">
+                    <div class="settle-transfer-label">Payment ${i + 1} of ${settlements.length}</div>
+                    <div class="settle-transfer-row">
+                        <span class="settle-from">${s.from}</span>
+                        <span class="settle-arrow">→ pays →</span>
+                        <span class="settle-to">${s.to}</span>
+                        <span class="settle-transfer-amount">₹${s.amount.toLocaleString('en-IN')}</span>
                     </div>
-
-                    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px;">
-                        <span style="background:#FEF2F2;color:#DC2626;border:1px solid #FECACA;
-                                     border-radius:6px;padding:2px 8px;font-weight:800;font-size:.82rem;">
-                            ${s.from}
-                        </span>
-                        <span style="color:#64748B;font-size:.75rem;font-weight:600;">must pay</span>
-                        <span style="background:#F0FDF4;color:#16A34A;border:1px solid #BBF7D0;
-                                     border-radius:6px;padding:2px 8px;font-weight:800;font-size:.82rem;">
-                            ${s.to}
-                        </span>
-                        <span style="font-size:1.15rem;font-weight:900;color:#1E1B4B;letter-spacing:-.5px;margin-left:4px;">
-                            ₹${s.amount}
-                        </span>
-                    </div>
-
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-                        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:7px;padding:6px 8px;">
-                            <div style="font-size:.62rem;color:#DC2626;font-weight:800;text-transform:uppercase;
-                                        letter-spacing:.5px;margin-bottom:3px;">
-                                🔴 ${s.from}
-                            </div>
-                            <div style="font-size:.75rem;color:#475569;line-height:1.6;">
-                                Paid ₹${fromPaid} · Share ₹${fromShare}<br>
-                                <span style="color:#DC2626;font-weight:700;">Owes: ₹${owes}</span>
-                            </div>
+                    <div class="settle-transfer-detail">
+                        <div class="settle-detail-box debtor">
+                            <div class="settle-detail-name">${s.from}</div>
+                            Paid: ₹${fromPaid.toLocaleString('en-IN')} · Share: ₹${fromShare.toLocaleString('en-IN')}<br>
+                            <strong style="color:var(--danger)">Net Owed: ₹${owes.toLocaleString('en-IN')}</strong>
                         </div>
-                        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:7px;padding:6px 8px;">
-                            <div style="font-size:.62rem;color:#16A34A;font-weight:800;text-transform:uppercase;
-                                        letter-spacing:.5px;margin-bottom:3px;">
-                                🟢 ${s.to}
-                            </div>
-                            <div style="font-size:.75rem;color:#475569;line-height:1.6;">
-                                Paid ₹${toPaid} · Share ₹${toShare}<br>
-                                <span style="color:#16A34A;font-weight:700;">Recovers: ₹${recovers}</span>
-                            </div>
+                        <div class="settle-detail-box creditor">
+                            <div class="settle-detail-name">${s.to}</div>
+                            Paid: ₹${toPaid.toLocaleString('en-IN')} · Share: ₹${toShare.toLocaleString('en-IN')}<br>
+                            <strong style="color:var(--success)">Net Back: ₹${recovers.toLocaleString('en-IN')}</strong>
                         </div>
                     </div>
                 </div>`;
@@ -841,81 +964,108 @@ function displaySettlements(settlements, spent, shouldPay, totalAmt) {
     }
 
     // ── Individual breakdown ──────────────────────────────────
-    html += `<div style="font-size:.65rem;color:#6366F1;font-weight:800;background:#EEF2FF;
-                         display:inline-block;padding:2px 8px;border-radius:20px;
-                         text-transform:uppercase;letter-spacing:.9px;margin:5px 0 7px;">
-                📊 Individual Breakdown
-             </div>`;
+    html += `<div class="settle-badge breakdown">Member Summary</div>`;
 
     people.forEach(p => {
-        const s   = Math.round(spent[p.name]);
-        const sh  = Math.round(shouldPay[p.name]);
+        const s   = Math.round(spent[p.name] || 0);
+        const sh  = Math.round(shouldPay[p.name] || 0);
         const bal = s - sh;
         const isCreditor = bal > 0, isDebtor = bal < 0;
 
-        const receives = settlements.filter(t => t.to   === p.name).map(t => `<strong style="color:#DC2626;">${t.from}</strong> → ₹${t.amount}`);
-        const pays     = settlements.filter(t => t.from === p.name).map(t => `₹${t.amount} → <strong style="color:#16A34A;">${t.to}</strong>`);
+        const receives = settlements.filter(t => t.to   === p.name).map(t => `<strong>${t.from}</strong> pays ₹${t.amount.toLocaleString('en-IN')}`);
+        const pays     = settlements.filter(t => t.from === p.name).map(t => `pays <strong>${t.to}</strong> ₹${t.amount.toLocaleString('en-IN')}`);
 
-        const borderColor = isCreditor ? '#16A34A' : isDebtor ? '#DC2626' : '#6366F1';
-        const rowBg       = isCreditor ? '#F0FDF4' : isDebtor ? '#FEF2F2' : '#F5F3FF';
-        const rowBorder   = isCreditor ? '#BBF7D0' : isDebtor ? '#FECACA' : '#DDD6FE';
-
-        const badge = isCreditor
-            ? `<span style="background:#DCFCE7;color:#16A34A;border:1px solid #BBF7D0;
-                            border-radius:20px;padding:2px 8px;font-size:.7rem;font-weight:800;">
-                    ✅ +₹${bal}
-               </span>`
-            : isDebtor
-            ? `<span style="background:#FEE2E2;color:#DC2626;border:1px solid #FECACA;
-                            border-radius:20px;padding:2px 8px;font-size:.7rem;font-weight:800;">
-                    🔴 -₹${Math.abs(bal)}
-               </span>`
-            : `<span style="background:#EDE9FE;color:#6366F1;border:1px solid #C4B5FD;
-                            border-radius:20px;padding:2px 8px;font-size:.7rem;font-weight:800;">
-                    ✨ Settled
-               </span>`;
+        const badgeClass = isCreditor ? 'positive' : isDebtor ? 'negative' : 'neutral';
+        const badgeText = isCreditor ? `+₹${bal.toLocaleString('en-IN')}` : isDebtor ? `-₹${Math.abs(bal).toLocaleString('en-IN')}` : 'Settled';
+        const balColor = isCreditor ? 'var(--success)' : isDebtor ? 'var(--danger)' : 'var(--accent)';
 
         html += `
-            <div style="background:${rowBg};border:1.5px solid ${rowBorder};border-left:4px solid ${borderColor};
-                        border-radius:8px;padding:8px 10px;margin-bottom:6px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;
-                            flex-wrap:wrap;gap:6px;margin-bottom:6px;">
-                    <div style="font-size:.88rem;font-weight:800;color:#0F172A;">${p.name}</div>
-                    ${badge}
+            <div class="settle-person">
+                <div class="settle-person-header">
+                    <div class="settle-person-name">${p.name}</div>
+                    <span class="settle-person-badge ${badgeClass}">${badgeText}</span>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:${(pays.length || receives.length) ? '6px' : '0'};">
-                    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 5px;text-align:center;">
-                        <div style="font-size:.6rem;color:#94A3B8;text-transform:uppercase;
-                                    letter-spacing:.4px;margin-bottom:1px;font-weight:700;">Paid</div>
-                        <div style="font-size:.88rem;font-weight:800;color:#0F172A;">₹${s}</div>
+                <div class="settle-person-stats">
+                    <div class="settle-stat-cell">
+                        <div class="settle-stat-cell-label">Paid</div>
+                        <div class="settle-stat-cell-value">₹${s.toLocaleString('en-IN')}</div>
                     </div>
-                    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 5px;text-align:center;">
-                        <div style="font-size:.6rem;color:#94A3B8;text-transform:uppercase;
-                                    letter-spacing:.4px;margin-bottom:1px;font-weight:700;">Share</div>
-                        <div style="font-size:.88rem;font-weight:800;color:#0F172A;">₹${sh}</div>
+                    <div class="settle-stat-cell">
+                        <div class="settle-stat-cell-label">Share</div>
+                        <div class="settle-stat-cell-value">₹${sh.toLocaleString('en-IN')}</div>
                     </div>
-                    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:6px;padding:4px 5px;text-align:center;">
-                        <div style="font-size:.6rem;color:#94A3B8;text-transform:uppercase;
-                                    letter-spacing:.4px;margin-bottom:1px;font-weight:700;">Balance</div>
-                        <div style="font-size:.88rem;font-weight:800;color:${borderColor};">
-                            ${bal > 0 ? '+' : ''}₹${bal}
+                    <div class="settle-stat-cell">
+                        <div class="settle-stat-cell-label">Balance</div>
+                        <div class="settle-stat-cell-value" style="color:${balColor}">
+                            ${bal > 0 ? '+' : ''}₹${bal.toLocaleString('en-IN')}
                         </div>
                     </div>
                 </div>
-                ${pays.length ? `<div style="font-size:.72rem;color:#475569;margin-top:3px;padding:3px 8px;
-                                             background:#FEF2F2;border-radius:5px;">
-                    ➡️ ${p.name} sends: ${pays.join(' &amp; ')}
+                ${pays.length ? `<div class="settle-person-flow sends">
+                    ${p.name} ${pays.join(' & ')}
                 </div>` : ''}
-                ${receives.length ? `<div style="font-size:.72rem;color:#475569;margin-top:3px;padding:3px 8px;
-                                                  background:#F0FDF4;border-radius:5px;">
-                    ⬅️ ${p.name} receives: ${receives.join(' &amp; ')}
+                ${receives.length ? `<div class="settle-person-flow receives">
+                    ${p.name} gets from ${receives.join(' & ')}
                 </div>` : ''}
             </div>`;
     });
 
     container.innerHTML = html;
+
     const expBtn = document.getElementById('exportBtn');
     if (expBtn) expBtn.style.display = 'block';
+
+    const quickShares = document.getElementById('settleQuickShares');
+    if (quickShares) quickShares.style.display = 'grid';
+}
+
+/** Share settlement breakdown directly on WhatsApp */
+function shareSettlementWhatsApp() {
+    if (!lastSettlementData) {
+        calculateSettlements();
+        if (!lastSettlementData) return;
+    }
+    const { settlements, totalAmt } = lastSettlementData;
+    const tripName = document.getElementById('groupDisplayName').textContent || 'Splitwise Group';
+
+    let text = `🌴 *${tripName} — Expense Settlement Summary*\n`;
+    text += `💰 *Total Spent:* ₹${totalAmt.toLocaleString('en-IN')}\n\n`;
+
+    if (settlements.length === 0) {
+        text += `✨ Everyone is fully settled up! No payments needed.\n`;
+    } else {
+        text += `💸 *Who Pays Whom:*\n`;
+        settlements.forEach((s, idx) => {
+            text += `${idx + 1}. *${s.from}* 👉 pays *${s.to}* : ₹${s.amount.toLocaleString('en-IN')}\n`;
+        });
+    }
+
+    text += `\nShared via Splitwise`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+/** Copy settlement breakdown text to clipboard */
+function copySettlementSummary() {
+    if (!lastSettlementData) {
+        calculateSettlements();
+        if (!lastSettlementData) return;
+    }
+    const { settlements, totalAmt } = lastSettlementData;
+    const tripName = document.getElementById('groupDisplayName').textContent || 'Splitwise Group';
+
+    let text = `🌴 ${tripName} — Expense Settlement Summary\n`;
+    text += `Total Spent: ₹${totalAmt.toLocaleString('en-IN')}\n\n`;
+
+    if (settlements.length === 0) {
+        text += `Everyone is fully settled up! No payments needed.\n`;
+    } else {
+        text += `Who Pays Whom:\n`;
+        settlements.forEach((s, idx) => {
+            text += `${idx + 1}. ${s.from} pays ${s.to} : ₹${s.amount.toLocaleString('en-IN')}\n`;
+        });
+    }
+
+    navigator.clipboard.writeText(text).then(() => showToast('Settlement text copied to clipboard!', 'success'));
 }
 
 
@@ -928,228 +1078,255 @@ function exportToPDF() {
     const doc = new jsPDF();
     const PW = 210, ML = 14, MR = 196, CW = MR - ML;
 
-    // ── helpers ──────────────────────────────────────────────
-    const bold   = (sz, r=0,g=0,b=0) => { doc.setFont(undefined,'bold');   doc.setFontSize(sz); doc.setTextColor(r,g,b); };
-    const normal = (sz, r=0,g=0,b=0) => { doc.setFont(undefined,'normal'); doc.setFontSize(sz); doc.setTextColor(r,g,b); };
-    const checkPage = (need=12) => { if (y + need > 280) { doc.addPage(); y = 18; } };
+    // ── Typography & color helpers ───────────────────────────
+    const bold   = (sz, r=17,g=24,b=39) => { doc.setFont(undefined,'bold');   doc.setFontSize(sz); doc.setTextColor(r,g,b); };
+    const normal = (sz, r=55,g=65,b=81) => { doc.setFont(undefined,'normal'); doc.setFontSize(sz); doc.setTextColor(r,g,b); };
+    const checkPage = (need=14) => { if (y + need > 275) { doc.addPage(); y = 18; } };
 
+    // Section header banner (clean light gray with emerald accent)
     const sectionHeader = (title) => {
-        checkPage(14);
-        doc.setFillColor(67, 56, 202);
-        doc.rect(ML, y - 1, CW, 9, 'F');
-        bold(10, 255, 255, 255);
-        doc.text(title, ML + 3, y + 5.5);
-        y += 13;
-        normal(9, 0, 0, 0);
+        checkPage(16);
+        doc.setFillColor(243, 244, 246); // #F3F4F6
+        doc.rect(ML, y - 1, CW, 8, 'F');
+        doc.setFillColor(13, 107, 79);   // #0D6B4F Emerald accent
+        doc.rect(ML, y - 1, 3, 8, 'F');
+        bold(9, 17, 24, 39);
+        doc.text(title, ML + 6, y + 4.8);
+        y += 12;
+        normal(8.5, 55, 65, 81);
     };
 
-    const row = (label, value, labelX, valueX, rowY, labelBold=false, vR=0,vG=0,vB=0) => {
-        if (labelBold) bold(9, 80, 80, 80); else normal(9, 80, 80, 80);
-        doc.text(label, labelX, rowY);
-        bold(9, vR, vG, vB);
-        doc.text(value, valueX, rowY, { align: 'right' });
-        normal(9, 0, 0, 0);
-    };
+    // ── HEADER BANNER (EMERALD) ──────────────────────────────
+    doc.setFillColor(13, 107, 79); // #0D6B4F
+    doc.rect(0, 0, PW, 24, 'F');
 
-    // ── HEADER ───────────────────────────────────────────────
-    doc.setFillColor(67, 56, 202);
-    doc.rect(0, 0, PW, 22, 'F');
-    bold(16, 255, 255, 255);
+    // Title
+    bold(15, 255, 255, 255);
     const tripName = currentGroupCode
         ? document.getElementById('groupDisplayName').textContent
-        : 'TripWise';
-    doc.text(tripName + ' — Expense Report', PW / 2, 10, { align: 'center' });
-    normal(8, 200, 200, 255);
+        : 'Splitwise Group';
+    doc.text(tripName + ' — Expense Report', PW / 2, 11, { align: 'center' });
+
+    // Subtitle
+    normal(8, 206, 234, 214);
     const today = new Date().toLocaleDateString('en-IN', { year:'numeric', month:'long', day:'numeric' });
-    doc.text(`${today}   |   Group Code: ${currentGroupCode || '—'}`, PW / 2, 17, { align: 'center' });
+    doc.text(`${today}   •   Group Code: ${currentGroupCode || '—'}   •   Splitwise`, PW / 2, 18, { align: 'center' });
 
-    let y = 28;
+    let y = 30;
 
-    // ── TRIP SUMMARY PILL ────────────────────────────────────
+    // ── SUMMARY METRICS CARD ─────────────────────────────────
     if (expenses.length > 0) {
         const tot = expenses.reduce((s, ex) => s + (ex.amount || 0), 0);
-        doc.setFillColor(240, 243, 255);
-        doc.rect(ML, y, CW, 10, 'F');
-        bold(10, 67, 56, 202);
-        doc.text(`Total Trip Spend: Rs. ${tot}   |   ${people.length} members   |   Rs. ${Math.round(tot/Math.max(people.length,1))} per person`, ML + 3, y + 6.5);
-        y += 14;
+        const perHead = Math.round(tot / Math.max(people.length, 1));
+
+        doc.setFillColor(230, 244, 234); // #E6F4EA
+        doc.rect(ML, y, CW, 12, 'F');
+        doc.setDrawColor(167, 243, 208); // #A7F3D0
+        doc.rect(ML, y, CW, 12, 'S');
+
+        bold(10, 13, 107, 79);
+        doc.text(`Total Spend: Rs. ${tot.toLocaleString('en-IN')}`, ML + 5, y + 7.5);
+
+        normal(8.5, 55, 65, 81);
+        doc.text(`${people.length} Members   •   Rs. ${perHead.toLocaleString('en-IN')} / person`, MR - 5, y + 7.5, { align: 'right' });
+        y += 18;
     }
 
-    // ── PEOPLE ───────────────────────────────────────────────
-    sectionHeader('MEMBERS');
-    if (people.length === 0) { normal(9,100,100,100); doc.text('No people added.', ML+3, y); y += 7; }
-    else {
+    // ── MEMBERS LIST ─────────────────────────────────────────
+    sectionHeader('GROUP MEMBERS');
+    if (people.length === 0) {
+        normal(8.5, 107, 114, 128);
+        doc.text('No members added yet.', ML + 3, y);
+        y += 8;
+    } else {
         const names = people.map(p => p.name).join('   •   ');
-        normal(9, 30, 30, 30);
-        const lines = doc.splitTextToSize(names, CW - 4);
+        normal(8.5, 31, 41, 55);
+        const lines = doc.splitTextToSize(names, CW - 6);
         doc.text(lines, ML + 3, y);
-        y += lines.length * 5 + 4;
+        y += lines.length * 5 + 6;
     }
 
-    // ── EXPENSES TABLE ───────────────────────────────────────
+    // ── EXPENSES LOG TABLE ───────────────────────────────────
     sectionHeader('EXPENSE LOG');
-    if (expenses.length === 0) { normal(9,100,100,100); doc.text('No expenses added.', ML+3, y); y += 7; }
-    else {
-        // Table header
-        doc.setFillColor(220, 220, 235);
+    if (expenses.length === 0) {
+        normal(8.5, 107, 114, 128);
+        doc.text('No expenses logged yet.', ML + 3, y);
+        y += 8;
+    } else {
+        // Table Header
+        doc.setFillColor(243, 244, 246);
         doc.rect(ML, y - 2, CW, 7, 'F');
-        bold(8, 60, 60, 100);
-        doc.text('#', ML+2, y+3);
-        doc.text('Paid By', ML+10, y+3);
-        doc.text('Description', ML+42, y+3);
-        doc.text('Split Among', ML+100, y+3);
-        doc.text('Amount', MR, y+3, { align:'right' });
+        bold(7.5, 107, 114, 128);
+        doc.text('#', ML + 3, y + 3);
+        doc.text('PAID BY', ML + 12, y + 3);
+        doc.text('DESCRIPTION', ML + 48, y + 3);
+        doc.text('SPLIT AMONG', ML + 110, y + 3);
+        doc.text('AMOUNT', MR - 2, y + 3, { align: 'right' });
         y += 9;
 
         expenses.forEach((ex, i) => {
-            checkPage(10);
-            const bg = i % 2 === 0 ? [250,250,255] : [255,255,255];
-            doc.setFillColor(...bg); doc.rect(ML, y-2, CW, 8, 'F');
+            checkPage(11);
+            const bg = i % 2 === 0 ? [255, 255, 255] : [249, 250, 251];
+            doc.setFillColor(...bg);
+            doc.rect(ML, y - 2, CW, 8, 'F');
 
-            normal(8, 0, 0, 0);
-            doc.text(`${i+1}`, ML+2, y+3);
-            bold(8, 0,0,0);
-            doc.text(ex.name, ML+10, y+3);
-            normal(8, 60,60,60);
-            const desc = doc.splitTextToSize(ex.description || '—', 55);
-            doc.text(desc[0], ML+42, y+3);
+            normal(7.5, 156, 163, 175);
+            doc.text(`${i + 1}`, ML + 3, y + 3.2);
+
+            bold(8, 17, 24, 39);
+            doc.text(ex.name, ML + 12, y + 3.2);
+
+            normal(8, 75, 85, 99);
+            const desc = doc.splitTextToSize(ex.description || 'General expense', 58);
+            doc.text(desc[0], ML + 48, y + 3.2);
+
             const splitInfo = ex.splittingMode === 'custom' && ex.customAmounts
                 ? 'Custom split'
-                : (ex.sharedWith ? ex.sharedWith.join(', ') : '');
-            const splitLines = doc.splitTextToSize(splitInfo, 52);
-            doc.text(splitLines[0], ML+100, y+3);
-            bold(8, 30,80,200);
-            doc.text(`Rs. ${ex.amount}`, MR, y+3, { align:'right' });
-            y += 8;
+                : (ex.sharedWith && ex.sharedWith.length === people.length ? 'All members' : (ex.sharedWith ? ex.sharedWith.join(', ') : ''));
+            const splitLines = doc.splitTextToSize(splitInfo, 50);
+            doc.text(splitLines[0], ML + 110, y + 3.2);
 
-            // extra detail line if custom amounts
+            bold(8.5, 13, 107, 79);
+            doc.text(`Rs. ${ex.amount.toLocaleString('en-IN')}`, MR - 2, y + 3.2, { align: 'right' });
+            y += 8.5;
+
+            // Detail line if custom amounts
             if (ex.splittingMode === 'custom' && ex.customAmounts) {
                 checkPage(6);
-                normal(7, 120,120,120);
-                const detail = Object.entries(ex.customAmounts).map(([n,a]) => `${n}: Rs.${a}`).join('  ');
-                const dLines = doc.splitTextToSize(detail, CW - 8);
-                doc.text(dLines[0], ML+14, y);
+                normal(7, 107, 114, 128);
+                const detail = Object.entries(ex.customAmounts).map(([n,a]) => `${n}: Rs.${a.toLocaleString('en-IN')}`).join('  |  ');
+                const dLines = doc.splitTextToSize(detail, CW - 16);
+                doc.text(dLines[0], ML + 16, y);
                 y += 5;
             }
         });
-        y += 4;
+        y += 5;
     }
 
-    // ── SETTLEMENT ───────────────────────────────────────────
+    // ── SETTLEMENT: WHO PAYS WHOM ─────────────────────────────
     if (expenses.length > 0 && people.length > 0) {
         const sp = {}, sh = {};
         people.forEach(p => { sp[p.name] = 0; sh[p.name] = 0; });
         expenses.forEach(ex => {
-            sp[ex.name] += ex.amount;
+            sp[ex.name] = (sp[ex.name] || 0) + ex.amount;
             if (ex.splittingMode === 'custom' && ex.customAmounts)
-                Object.entries(ex.customAmounts).forEach(([n,a]) => { sh[n] += a; });
-            else { const s = ex.amount / ex.sharedWith.length; ex.sharedWith.forEach(n => { sh[n] += s; }); }
+                Object.entries(ex.customAmounts).forEach(([n,a]) => { sh[n] = (sh[n] || 0) + a; });
+            else {
+                const count = ex.sharedWith && ex.sharedWith.length ? ex.sharedWith.length : 1;
+                const s = ex.amount / count;
+                (ex.sharedWith || []).forEach(n => { sh[n] = (sh[n] || 0) + s; });
+            }
         });
-        const balances = {};
-        people.forEach(p => { balances[p.name] = Math.round(sp[p.name] - sh[p.name]); });
-        const settlements = generateOptimalSettlements(balances);
-        const totalExpAmt = expenses.reduce((acc, ex) => acc + (ex.amount || 0), 0);
-        const perHead = Math.round(totalExpAmt / Math.max(people.length, 1));
 
-        sectionHeader('WHO PAYS WHOM');
+        const balances = {};
+        people.forEach(p => { balances[p.name] = Math.round((sp[p.name] || 0) - (sh[p.name] || 0)); });
+        const settlements = generateOptimalSettlements(balances);
+
+        sectionHeader('SETTLEMENT — WHO PAYS WHOM');
 
         if (settlements.length === 0) {
-            doc.setFillColor(212, 237, 218); doc.rect(ML, y-1, CW, 10, 'F');
-            bold(10, 21, 87, 36);
-            doc.text('All good! Everyone paid their fair share. No transfers needed.', ML+3, y+6);
-            y += 14;
+            doc.setFillColor(230, 244, 234);
+            doc.rect(ML, y - 1, CW, 10, 'F');
+            doc.setDrawColor(167, 243, 208);
+            doc.rect(ML, y - 1, CW, 10, 'S');
+            bold(9, 5, 150, 105);
+            doc.text('All settled! Everyone paid their exact fair share. No transfers required.', ML + 4, y + 5.5);
+            y += 15;
         } else {
             settlements.forEach((s, i) => {
                 checkPage(22);
-                // Left accent stripe
-                doc.setFillColor(255, 245, 235); doc.rect(ML, y-1, CW, 18, 'F');
-                doc.setFillColor(220, 100, 60); doc.rect(ML, y-1, 2, 18, 'F');
 
-                // Step number
-                bold(7, 180, 80, 30);
-                doc.text(`Step ${i+1} of ${settlements.length}`, ML+5, y+4);
+                // Transfer card background & borders
+                doc.setFillColor(255, 255, 255);
+                doc.rect(ML, y - 1, CW, 19, 'F');
+                doc.setDrawColor(229, 231, 235);
+                doc.rect(ML, y - 1, CW, 19, 'S');
 
-                // Main sentence — plain English
-                bold(11, 30, 30, 30);
-                doc.text(`${s.from}`, ML+5, y+11);
-                normal(10, 80, 80, 80);
-                doc.text('pays', ML+5 + doc.getTextWidth(s.from) + 2, y+11);
-                bold(11, 30, 30, 30);
-                const paysX = ML+5 + doc.getTextWidth(s.from) + 2 + doc.getTextWidth('pays') + 2;
-                doc.text(s.to, paysX, y+11);
+                // Left emerald indicator
+                doc.setFillColor(13, 107, 79);
+                doc.rect(ML, y - 1, 2.5, 19, 'F');
 
-                // Amount on the right
-                bold(13, 30, 80, 200);
-                doc.text(`Rs. ${s.amount}`, MR, y+11, { align:'right' });
+                // Step tag
+                bold(7, 13, 107, 79);
+                doc.text(`PAYMENT ${i + 1} OF ${settlements.length}`, ML + 6, y + 4.5);
 
-                // Context line
-                const fromPaid=Math.round(sp[s.from]||0), fromShare=Math.round(sh[s.from]||0);
-                const toPaid=Math.round(sp[s.to]||0), toShare=Math.round(sh[s.to]||0);
-                normal(7, 110, 110, 110);
+                // Main Transfer statement
+                bold(10.5, 220, 38, 38); // Debtor Red
+                doc.text(s.from, ML + 6, y + 11.5);
+
+                normal(9.5, 107, 114, 128);
+                const fromW = doc.getTextWidth(s.from);
+                doc.text('  pays  ', ML + 6 + fromW, y + 11.5);
+
+                const paysW = doc.getTextWidth('  pays  ');
+                bold(10.5, 5, 150, 105); // Creditor Green
+                doc.text(s.to, ML + 6 + fromW + paysW, y + 11.5);
+
+                // Transfer Amount on Right
+                bold(12, 13, 107, 79);
+                doc.text(`Rs. ${s.amount.toLocaleString('en-IN')}`, MR - 5, y + 11.5, { align: 'right' });
+
+                // Sub-context line
+                const fromPaid  = Math.round(sp[s.from] || 0), fromShare = Math.round(sh[s.from] || 0);
+                const toPaid    = Math.round(sp[s.to] || 0),   toShare   = Math.round(sh[s.to] || 0);
+                normal(7, 107, 114, 128);
                 doc.text(
-                    `${s.from} paid Rs.${fromPaid} but owed Rs.${fromShare}  •  ${s.to} paid Rs.${toPaid} but owed Rs.${toShare}`,
-                    ML+5, y+16
+                    `${s.from} (Paid: Rs.${fromPaid.toLocaleString('en-IN')} · Share: Rs.${fromShare.toLocaleString('en-IN')})  →  ${s.to} (Paid: Rs.${toPaid.toLocaleString('en-IN')} · Share: Rs.${toShare.toLocaleString('en-IN')})`,
+                    ML + 6, y + 16.5
                 );
 
-                y += 22;
+                y += 23;
             });
         }
         y += 4;
 
         // ── INDIVIDUAL SUMMARY TABLE ─────────────────────────
-        sectionHeader('INDIVIDUAL SUMMARY');
+        sectionHeader('MEMBER BREAKDOWN');
 
-        // Table header
-        doc.setFillColor(220, 220, 235); doc.rect(ML, y-2, CW, 7, 'F');
-        bold(8, 60, 60, 100);
-        doc.text('Name', ML+3, y+3);
-        doc.text('Total Paid', ML+70, y+3, { align:'right' });
-        doc.text('Fair Share', ML+110, y+3, { align:'right' });
-        doc.text('Status', MR, y+3, { align:'right' });
+        doc.setFillColor(243, 244, 246);
+        doc.rect(ML, y - 2, CW, 7, 'F');
+        bold(7.5, 107, 114, 128);
+        doc.text('MEMBER', ML + 5, y + 3);
+        doc.text('TOTAL PAID', ML + 75, y + 3, { align: 'right' });
+        doc.text('FAIR SHARE', ML + 118, y + 3, { align: 'right' });
+        doc.text('FINAL BALANCE', MR - 3, y + 3, { align: 'right' });
         y += 9;
 
         people.forEach((p, i) => {
-            checkPage(9);
-            const paid = Math.round(sp[p.name]), owes = Math.round(sh[p.name]), bal = paid - owes;
-            const bg = i % 2 === 0 ? [250,250,255] : [255,255,255];
-            doc.setFillColor(...bg); doc.rect(ML, y-2, CW, 8, 'F');
+            checkPage(10);
+            const paid = Math.round(sp[p.name] || 0);
+            const owes = Math.round(sh[p.name] || 0);
+            const bal  = paid - owes;
 
-            // Color stripe on left
-            if (bal > 0) doc.setFillColor(21,130,60);
-            else if (bal < 0) doc.setFillColor(180,30,30);
-            else doc.setFillColor(150,150,150);
-            doc.rect(ML, y-2, 2, 8, 'F');
+            const bg = i % 2 === 0 ? [255, 255, 255] : [249, 250, 251];
+            doc.setFillColor(...bg);
+            doc.rect(ML, y - 2, CW, 8, 'F');
 
-            bold(9, 0, 0, 0);
-            doc.text(p.name, ML+5, y+3.5);
+            // Left status stripe
+            if (bal > 0) doc.setFillColor(5, 150, 105);
+            else if (bal < 0) doc.setFillColor(220, 38, 38);
+            else doc.setFillColor(156, 163, 175);
+            doc.rect(ML, y - 2, 2, 8, 'F');
 
-            normal(9, 40, 40, 40);
-            doc.text(`Rs. ${paid}`, ML+70, y+3.5, { align:'right' });
-            doc.text(`Rs. ${owes}`, ML+110, y+3.5, { align:'right' });
+            bold(8.5, 17, 24, 39);
+            doc.text(p.name, ML + 5, y + 3.2);
 
-            if (bal > 0) { bold(8, 21,87,36); doc.text(`Gets back Rs. ${bal}`, MR, y+3.5, { align:'right' }); }
-            else if (bal < 0) { bold(8, 150,20,20); doc.text(`Owes Rs. ${Math.abs(bal)}`, MR, y+3.5, { align:'right' }); }
-            else { normal(8, 120,120,120); doc.text('Settled', MR, y+3.5, { align:'right' }); }
+            normal(8.5, 55, 65, 81);
+            doc.text(`Rs. ${paid.toLocaleString('en-IN')}`, ML + 75, y + 3.2, { align: 'right' });
+            doc.text(`Rs. ${owes.toLocaleString('en-IN')}`, ML + 118, y + 3.2, { align: 'right' });
 
-            // Who to pay / receive from (sub-row)
-            const myPayments = settlements.filter(t => t.from === p.name);
-            const myReceipts = settlements.filter(t => t.to   === p.name);
-            if (myPayments.length || myReceipts.length) {
-                checkPage(6);
-                normal(7, 120, 120, 120);
-                if (myPayments.length) {
-                    const txt = myPayments.map(t => `Send Rs.${t.amount} to ${t.to}`).join('  |  ');
-                    doc.text(txt, ML+5, y+10);
-                    y += 5;
-                }
-                if (myReceipts.length) {
-                    const txt = myReceipts.map(t => `Receive Rs.${t.amount} from ${t.from}`).join('  |  ');
-                    doc.text(txt, ML+5, y+10);
-                    y += 5;
-                }
+            if (bal > 0) {
+                bold(8, 5, 150, 105);
+                doc.text(`Gets back Rs. ${bal.toLocaleString('en-IN')}`, MR - 3, y + 3.2, { align: 'right' });
+            } else if (bal < 0) {
+                bold(8, 220, 38, 38);
+                doc.text(`Owes Rs. ${Math.abs(bal).toLocaleString('en-IN')}`, MR - 3, y + 3.2, { align: 'right' });
+            } else {
+                normal(8, 107, 114, 128);
+                doc.text('Settled', MR - 3, y + 3.2, { align: 'right' });
             }
 
-            y += 8;
+            y += 8.5;
         });
     }
 
@@ -1157,13 +1334,18 @@ function exportToPDF() {
     const pages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pages; i++) {
         doc.setPage(i);
-        doc.setFillColor(240, 240, 248); doc.rect(0, 285, PW, 12, 'F');
-        normal(7, 140, 140, 140);
-        doc.text(`Page ${i} of ${pages}`, PW/2, 291, { align:'center' });
-        doc.text('Generated by TripWise', MR, 291, { align:'right' });
+        doc.setFillColor(248, 249, 250);
+        doc.rect(0, 286, PW, 11, 'F');
+        doc.setDrawColor(229, 231, 235);
+        doc.line(0, 286, PW, 286);
+
+        normal(7.5, 107, 114, 128);
+        doc.text(`Page ${i} of ${pages}`, PW / 2, 292, { align: 'center' });
+        doc.text('Generated by Splitwise', MR, 292, { align: 'right' });
+        doc.text('Instant Group Expense Splitter', ML, 292, { align: 'left' });
     }
 
-    const fname = (document.getElementById('groupDisplayName').textContent || 'TripWise').replace(/\s+/g, '-');
+    const fname = (document.getElementById('groupDisplayName').textContent || 'Splitwise').replace(/\s+/g, '-');
     doc.save(`${fname}-Expense-Report.pdf`);
 }
 
@@ -1171,4 +1353,26 @@ function exportToPDF() {
 // ============================================================
 //  BOOT
 // ============================================================
-window.addEventListener('load', loadData);
+window.addEventListener('load', function() {
+    initTheme();
+    loadData();
+
+    // Check for ?code=XYZ or #join=XYZ in URL for one-click invite join
+    const params = new URLSearchParams(window.location.search);
+    let codeFromUrl = params.get('code') || params.get('join');
+    if (!codeFromUrl && window.location.hash) {
+        const match = window.location.hash.match(/(?:join=|code=)([A-Za-z0-9]{6})/);
+        if (match) codeFromUrl = match[1];
+    }
+    if (codeFromUrl) {
+        const joinCodeInput = document.getElementById('joinCode');
+        if (joinCodeInput) {
+            joinCodeInput.value = codeFromUrl.toUpperCase();
+            showLandingTab('join');
+            // Auto join if 6 characters
+            if (codeFromUrl.length === 6) {
+                joinGroup(codeFromUrl.toUpperCase());
+            }
+        }
+    }
+});
